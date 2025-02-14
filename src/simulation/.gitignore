@@ -1,3 +1,4 @@
 metadrive-main/
 .venv/
 venv/
+__pycache__/
