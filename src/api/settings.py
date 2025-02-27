@@ -5,17 +5,24 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     app_name: str = "MetaSimulator API"
-    host: str = "127.0.0.1"
+    host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
     db_name: str = "metasimulator"
     db_username: str = "metasimulator"
     db_password: str = "metasimulator"
-    db_host: str = "localhost"
+    db_host: str = "0.0.0.0"
     db_port: int = 5432
-    rabbitmq_url: str = "amqp://guest:guest@localhost/"
+    rq_host: str = "0.0.0.0"
+    rq_port: int = 5672
+    rq_user:str = "guest"
+    rq_password: str = "guest"
     task_queue: str = "task_queue"
     result_queue: str = "result_queue"
+
+    @property
+    def rabbitmq_url(self):
+        return "amqp://{}:{}@{}/".format(self.rq_user, self.rq_password, self.rq_host)
     @property
     def db_url(self) -> str:
         return "postgresql+asyncpg://{}:{}@{}:{}/{}".format(self.db_username,

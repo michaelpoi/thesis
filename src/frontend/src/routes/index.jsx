@@ -3,16 +3,13 @@ import { useAuth } from "../provider/AuthProvider";
 import { ProtectedRoute } from "./ProtectedRoute";
 import Login from "../pages/Login";
 import Home from "../pages/home";
+import Register from "../pages/Register";
 
 const Routes = () => {
   const { token } = useAuth();
 
   // Define public routes accessible to all users
   const routesForPublic = [
-    {
-      path: "/service",
-      element: <Home/>,
-    },
     {
       path: "/about-us",
       element: <div>About Us</div>,
@@ -26,7 +23,7 @@ const Routes = () => {
       children: [
         {
           path: "/",
-          element: <div>User Home Page</div>,
+          element: <Home/>,
         },
         {
           path: "/profile",
@@ -50,6 +47,11 @@ const Routes = () => {
       path: "/login",
       element: <Login/>,
     },
+    {
+      path: "/register",
+      element: <Register/>
+    }
+
   ];
 
   // Combine and conditionally include routes based on authentication status

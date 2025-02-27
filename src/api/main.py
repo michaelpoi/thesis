@@ -19,7 +19,7 @@ app = FastAPI(lifespan=lifespan)
 origins = [
     "http://localhost:3000",  # React app on localhost
     "http://127.0.0.1:3000",  # React app alternative
-    "https://myfrontenddomain.com",  # Deployed frontend app
+    "http://0.0.0.0:3000",  # Deployed frontend app
 ]
 
 app.add_middleware(

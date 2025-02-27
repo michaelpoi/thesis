@@ -12,6 +12,7 @@ from sqlalchemy.future import select
 from queues.tasks import queue
 from sqlalchemy.orm import joinedload
 from schemas.results import Move
+from auth.auth import get_current_user
 
 router = APIRouter(
     prefix='/tasks',
@@ -20,8 +21,9 @@ router = APIRouter(
 
 
 @router.post('/')
-async def create_scenario(scenario: SScenario) -> SScenario:
+async def create_scenario(scenario: SScenario, user=Depends(get_current_user)) -> SScenario:
     # Convert Pydantic model to dict, remove the 'id' field and 'vehicles' list
+    print(user)
     scenario_json = scenario.model_dump()
     scenario_json.pop('id')  # Remove 'id' from the input as it is auto-generated
     vehicles_json = scenario_json.pop('vehicles')  # Extract the 'vehicles' list

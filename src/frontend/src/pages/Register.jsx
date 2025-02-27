@@ -3,8 +3,7 @@ import { useAuth } from "../provider/AuthProvider";
 import {useState} from "react";
 import axios from "axios";
 
-const Login = () => {
-  const { setToken } = useAuth();
+const Register = () => {
   const navigate = useNavigate();
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
@@ -12,25 +11,17 @@ const Login = () => {
     'password': ''
   })
 
-  const handleLogin = async (e) => {
+  const handleRegister = async (e) => {
   e.preventDefault();
-    const formParams = new URLSearchParams();
-    formParams.append("username", formData.username);
-    formParams.append("password", formData.password);
 
   try{
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/login`, formParams, {
-      headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-      }
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/register`, formData, {
     });
 
-      const {access_token} = response.data
-      setToken(access_token)
-      navigate("/", {replace: true})
+      navigate("/login", {replace: true})
   }
   catch (error){
-      setError("Login or password is incorrect");
+      setError(error);
   }
 
 
@@ -58,7 +49,7 @@ const Login = () => {
       {error ? <div className="login-error">
         <p>{error}</p>
       </div>: null}
-      <form onSubmit={handleLogin} className="login-form">
+      <form onSubmit={handleRegister} className="login-form">
         <div className="form-group">
           <label htmlFor="username">Username</label>
           <input
@@ -67,7 +58,7 @@ const Login = () => {
             name="username"
             value={formData.username}
             onChange={handleChange}
-            placeholder="Enter your email"
+            placeholder="Enter your username"
           />
           {/*{errors.username && <span className="error">{errors.username}</span>}*/}
         </div>
@@ -91,4 +82,4 @@ const Login = () => {
   )
 };
 
-export default Login;
+export default Register;

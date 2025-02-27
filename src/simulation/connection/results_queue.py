@@ -1,4 +1,5 @@
 import json
+import os
 
 import aio_pika
 from schemas import ScenarioStep, Move, InitEnv
@@ -71,7 +72,17 @@ class ResultsQueue:
         print(f"Received AddEnv scenario {scenario}")
         env_manager.add_env(scenario.id)
 
-results_queue = ResultsQueue(rabbitmq_url="amqp://guest:guest@localhost/",
+def get_rabbitmq_url():
+
+    url = "amqp://{}:{}@{}/".format(
+                                     os.getenv('rq_user', 'guest'),
+                                     os.getenv('rq_password', 'guest'),
+                                     os.getenv('rq_host'))
+
+    print(url)
+    return url
+
+results_queue = ResultsQueue(rabbitmq_url=get_rabbitmq_url(),
                              task_queue='task_queue',
                              result_queue='result_queue')
 

@@ -11,7 +11,7 @@ from sqlalchemy.sql.annotation import Annotated
 from auth.schemas import Token, TokenData
 from db.user_repository import UserRepository
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
 
@@ -36,7 +36,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: Annotated[Token, Depends(oauth2_scheme)]):
+async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -50,7 +50,7 @@ async def get_current_user(token: Annotated[Token, Depends(oauth2_scheme)]):
         token_data = TokenData(username=username)
     except InvalidTokenError:
         raise credentials_exception
-    user = UserRepository.get_user_by_username(token_data.username)
+    user = await UserRepository.get_user_by_username(token_data.username)
     if user is None:
         raise credentials_exception
     return user

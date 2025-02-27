@@ -1,6 +1,7 @@
 import TaskList from "../components/TaskList";
 import TaskConnection from "../components/TaskConnection";
 import {useState} from "react";
+import Header from "../components/Header";
 
 const Home = () => {
 
@@ -10,6 +11,7 @@ const Home = () => {
 
     return (
         <div className="App">
+            <Header/>
             <h1>Task Manager</h1>
             <TaskList onConnect={(task) => setConnectedTask(task)} usedVehicle={usedVehicle}
                          setUsedVehicle={setUsedVehicle}/>
