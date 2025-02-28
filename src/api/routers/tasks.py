@@ -80,23 +80,33 @@ async def list_all_tasks() -> List[SScenario]:
 clients = {}
 @router.websocket('/ws/{task_id}/{vehicle_id}/')
 async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
+    token = websocket.headers.get('sec-websocket-protocol')
+
+    try:
+        user = await get_current_user(token)
+        print(f"Websocket user {user}")
+
+    except Exception:
+        await websocket.close(code=1008)
+    print(token)
+
     async with async_session() as session:
         queryset = await session.execute(select(Scenario).where(Scenario.id == task_id))
         task = queryset.scalars().one_or_none()
         if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+            return await websocket.close()
 
         vehicle = await session.execute(select(Vehicle).where(Vehicle.id == vehicle_id))
 
         vehicle = vehicle.scalars().one_or_none()
 
         if not vehicle:
-            raise HTTPException(status_code=404, detail="Vehicle not found")
+            return await websocket.close()
 
         if vehicle.scenario_id != task.id:
-            raise HTTPException(status_code=404, detail="Vehicle incorrect")
+            return await websocket.close()
 
-        await websocket.accept()
+        await websocket.accept(subprotocol=token)
 
         if not task_id in clients:
             clients[task_id] = []

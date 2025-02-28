@@ -35,7 +35,7 @@ const Scenario = () => {
 
   useEffect(() => {
     // Create WebSocket connection
-    const socket = new WebSocket(`ws://localhost:8000/tasks/ws/${task.id}/${usedVehicle}/`);
+    const socket = new WebSocket(`ws://localhost:8000/tasks/ws/${task.id}/${usedVehicle}/`, [localStorage.getItem('token')]);
 
     ws.current = socket; // Store socket in ref
 
