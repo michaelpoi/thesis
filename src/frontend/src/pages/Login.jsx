@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../provider/AuthProvider";
 import {useState} from "react";
 import axios from "axios";
+import "./login.css"
 
 const Login = () => {
   const { setToken } = useAuth();

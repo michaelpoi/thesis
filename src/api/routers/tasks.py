@@ -1,5 +1,6 @@
 from typing import List
-
+import asyncio
+import io
 from fastapi.exceptions import HTTPException
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from fastapi import APIRouter, Depends
@@ -13,6 +14,7 @@ from queues.tasks import queue
 from sqlalchemy.orm import joinedload
 from schemas.results import Move
 from auth.auth import get_current_user
+from PIL import Image
 
 router = APIRouter(
     prefix='/tasks',
@@ -106,10 +108,26 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                 data = await websocket.receive_text()
                 move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=data)
                 await queue.send_task(move, "MOVE")
+                await asyncio.sleep(0.02)
+                try:
+                    image = Image.open("/app/output.png")  # Load your image
+                    img_bytes = io.BytesIO()
+                    image.save(img_bytes, format="PNG")  # Convert to PNG format
+                    img_bytes.seek(0)  # Reset cursor to start of the file
+
+                    # Send the image as bytes
+                    await websocket.send_bytes(img_bytes.getvalue())
+                except:
+                    pass
             except WebSocketDisconnect:
                 # await websocket.close()
                 break
 
+
+from fastapi.responses import FileResponse
+@router.get('/image/')
+def get_image():
+    return FileResponse('/app/output.png', media_type='image/png')
 
 
 

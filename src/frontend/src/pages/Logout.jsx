@@ -6,7 +6,7 @@ const Logout = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    setToken();
+    setToken(null);
     navigate("/", { replace: true });
   };
 
@@ -14,7 +14,7 @@ const Logout = () => {
     handleLogout();
   }, 3 * 1000);
 
-  return <>Logout Page</>;
+  return <>You are logging out...</>;
 };
 
 export default Logout;

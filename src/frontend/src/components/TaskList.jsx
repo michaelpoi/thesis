@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
+import "./task_list.css"
+import {useNavigate} from "react-router-dom";
 
-const TaskList = ({ onConnect, usedVehicle, setUsedVehicle }) => {
+const TaskList = () => {
   const [tasks, setTasks] = useState([]);
   const [newScenarioSteps, setNewScenarioSteps] = useState(0);
   const [newScenarioVehicles, setScenarioVechiles] = useState([]);
+  const [showAddScenarioForm, setShowAddScenarioForm] = useState(false);
+  const [usedVehicle, setUsedVehicle] = useState(0)
+  const navigate = useNavigate()
+
 
   useEffect(() => {
     fetch("http://localhost:8000/tasks/")
@@ -14,14 +20,23 @@ const TaskList = ({ onConnect, usedVehicle, setUsedVehicle }) => {
   const createTask = async () => {
     const res = await fetch("http://localhost:8000/tasks/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem('token')}` },
       body: JSON.stringify({ steps: newScenarioSteps, vehicles: newScenarioVehicles }),
     });
+    if (res.status === 401){
+        navigate('/logout', {replace: true})
+    }
     const task = await res.json();
     setTasks([...tasks, task]);
     setScenarioVechiles([]);
     setNewScenarioSteps(0);
   };
+
+  const onConnect = (task) => {
+      navigate(`/scenario/${task.id}`,{
+          state:{task, usedVehicle}
+      })
+  }
 
   const handleInputChange = (index, key, value) => {
     setScenarioVechiles((prev) =>
@@ -30,65 +45,75 @@ const TaskList = ({ onConnect, usedVehicle, setUsedVehicle }) => {
   };
 
   return (
-    <div>
-      <h2>Tasks</h2>
-      <label>
+      <div>
+          <label>
               Vehicle
-              <input value={usedVehicle} onChange={(e) => setUsedVehicle(e.target.value)}></input>
-            </label>
-      <ul>
-        {tasks.map((task) => (
-          <li key={task.id}>
-            Scenario #{task.id} (vehicles {task.vehicles.map((vehicle) => (`${vehicle.id} `))}) 
-            <button onClick={() => onConnect(task)}>Connect</button>
-          </li>
-        ))}
-      </ul>
-      <label>
-        Scenario Steps
-      <input
-        value={newScenarioSteps}
-        onChange={(e) => setNewScenarioSteps(e.target.value)}
-        placeholder="Task Steps"
-      />
-      </label>
-      
-      <div id="vehicles">
-      {newScenarioVehicles.map((vehicle, index) => (
-  <div key={index}>
-  <label>
-    Initial X:
-    <input
-      value={vehicle.init_x}
-      onChange={(e) => handleInputChange(index, 'init_x', e.target.value)}
-    />
-  </label>
-  <label>
-    Initial Y:
-    <input
-      value={vehicle.init_y}
-      onChange={(e) => handleInputChange(index, 'init_y', e.target.value)}
-    />
-  </label>
-  <label>
-    Initial Speed:
-    <input
-      value={vehicle.init_speed}
-      onChange={(e) => handleInputChange(index, 'init_speed', e.target.value)}
-    />
-  </label>
-</div>
-))}
-<button
-  onClick={() =>
-    setScenarioVechiles((prev) => [...prev, { init_x: 0, init_y: 0, init_speed: 0 }])
-  }
->
-  Add Vehicle
-</button>
+              <input
+                  value={usedVehicle}
+                  onChange={(e) => setUsedVehicle(e.target.value)}
+              />
+          </label>
+
+          <div className="scenario_list">
+              {tasks.map((task) => (
+                  <div key={task.id} className="scenario_card">
+                      Scenario #{task.id} (vehicles {task.vehicles.map((vehicle) => (`${vehicle.id} `))})
+                      <button className="connect_button" onClick={() => onConnect(task)}>Connect</button>
+                  </div>
+              ))}
+          </div>
+
+          {showAddScenarioForm ? (
+              <div className="add_scenario">
+                  <label>
+                      Scenario Steps
+                      <input
+                          value={newScenarioSteps}
+                          onChange={(e) => setNewScenarioSteps(e.target.value)}
+                          placeholder="Task Steps"
+                      />
+                  </label>
+
+                  <div id="vehicles">
+                      {newScenarioVehicles.map((vehicle, index) => (
+                          <div key={index}>
+                              <label>
+                                  Initial X:
+                                  <input
+                                      value={vehicle.init_x}
+                                      onChange={(e) => handleInputChange(index, "init_x", e.target.value)}
+                                  />
+                              </label>
+                              <label>
+                                  Initial Y:
+                                  <input
+                                      value={vehicle.init_y}
+                                      onChange={(e) => handleInputChange(index, "init_y", e.target.value)}
+                                  />
+                              </label>
+                              <label>
+                                  Initial Speed:
+                                  <input
+                                      value={vehicle.init_speed}
+                                      onChange={(e) => handleInputChange(index, "init_speed", e.target.value)}
+                                  />
+                              </label>
+                          </div>
+                      ))}
+                      <button onClick={() =>
+                          setScenarioVechiles((prev) => [...prev, {init_x: 0, init_y: 0, init_speed: 0}])
+                      }>
+                          Add Vehicle
+                      </button>
+                  </div>
+
+                  <button className="create-task-button" onClick={createTask}>Create Task</button>
+                  <button className="close_add_scenario" onClick={() => setShowAddScenarioForm(false)}>Close</button>
+              </div>
+          ) : (
+              <button className="open_add_scenario" onClick={() => setShowAddScenarioForm(true)}>Add Scenario</button>
+          )}
       </div>
-      <button onClick={createTask}>Create Task</button>
-    </div>
   );
 };
 

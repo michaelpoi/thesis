@@ -1,50 +1,52 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-const TaskConnection = ({ task, usedVehicle}) => {
+const TaskConnection = ({ task, usedVehicle }) => {
   const [messages, setMessages] = useState([]);
-  const [ws, setWs] = useState(null);
+  const ws = useRef(null); // Use useRef for WebSocket
 
   const handleKeyDown = (e) => {
-    console.log(e.which);
-    if (e.which === 87) {
-      sendDirection("UP");
+    switch (e.which){
+      case 87:
+        sendDirection("UP")
+        break;
+      case 68:
+        sendDirection("RIGHT")
+        break;
+      case 65:
+        sendDirection("LEFT")
+        break;
+      case 83:
+        sendDirection("DOWN")
+        break;
     }
   };
 
   const sendDirection = (direction) => {
-    if (ws) {
+    if (ws.current) {
       console.log(direction);
-      ws.send(direction);
+      ws.current.send(direction);
     }
   };
 
   useEffect(() => {
     // Create WebSocket connection
-    
     const socket = new WebSocket(`ws://localhost:8000/tasks/ws/${task.id}/${usedVehicle}/`);
-    
-    setWs(socket);
+
+    ws.current = socket; // Store socket in ref
 
     socket.onmessage = (event) => {
       setMessages((prev) => [...prev, event.data]);
     };
-    // socket.onerror = (error) => {
-    //   alert("Not able to connect");
-    //   socket.close()
-    // };
 
-    // Add keydown event listener when the component mounts
+    // Add keydown event listener
     document.addEventListener("keydown", handleKeyDown);
 
-    // Clean up the event listener and WebSocket connection when the component unmounts
+    // Cleanup event listener and WebSocket connection on unmount
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      // disconnect();
       socket.close();
-      
     };
-  }, [task.id]);
-  ;
+  }, [task.id, usedVehicle]); // Reconnect WebSocket when task or vehicle changes
 
   return (
     <div>

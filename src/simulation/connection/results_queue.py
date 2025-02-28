@@ -1,11 +1,13 @@
 import json
 import os
+import io
 
 import aio_pika
 from schemas import ScenarioStep, Move, InitEnv
 from core.env_manager import env_manager
 from core.move_converter import MoveConverter
 from metadrive.envs import MetaDriveEnv
+from PIL import Image
 
 class ResultsQueue:
     def __init__(self, rabbitmq_url:str, task_queue:str, result_queue:str):
@@ -20,6 +22,15 @@ class ResultsQueue:
             await channel.default_exchange.publish(
                 message=aio_pika.Message(body=task.json().encode()),
                 routing_key=self.result_queue,
+            )
+
+    async def send_picture(self, image_bytes):
+        connection = await aio_pika.connect_robust(self.rabbitmq_url)
+        async with connection:
+            channel = await connection.channel()
+            await channel.default_exchange.publish(
+                message = aio_pika.Message(image_bytes),
+                routing_key='image_queue',
             )
 
     async def consume_results(self, queue=None):
@@ -58,12 +69,24 @@ class ResultsQueue:
         # }
         # env = MetaDriveEnv(config=config)
         # env.reset()
-        print(env)
         move_arr = MoveConverter.convert(step)
         res = env.step(move_arr)
-        print(res)
         vehicle_position = env.vehicle.position
         print(vehicle_position)
+        image = env.render(mode='topdown',
+                           window=False)
+
+        bytes_io = io.BytesIO()
+
+        img = Image.fromarray(image)
+
+        print(img)
+
+        img.save(bytes_io, format="PNG")
+
+        image_bytes = bytes_io.getvalue()
+
+        await self.send_picture(image_bytes)
 
 
 

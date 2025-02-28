@@ -21,7 +21,7 @@ const Register = () => {
       navigate("/login", {replace: true})
   }
   catch (error){
-      setError(error);
+      setError("Password should be minimum 5 characters long");
   }
 
 
@@ -45,7 +45,7 @@ const Register = () => {
 
   return (
     <div className="login-container">
-      <h2>Login</h2>
+      <h2>Create an account</h2>
       {error ? <div className="login-error">
         <p>{error}</p>
       </div>: null}
