@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends
 from models import scenario
 from models.scenario import Scenario, Vehicle
 from database import async_session
-from schemas.results import Scenario as SScenario, Vehicle as SVehicle
+from schemas.results import Scenario as SScenario, Vehicle as SVehicle, ScenarioBase as SScenarioAdd
 from sqlalchemy.future import select
-from queues.tasks import queue
+from queues.queue import queue
 from sqlalchemy.orm import joinedload
 from schemas.results import Move
 from auth.auth import get_current_user
@@ -23,15 +23,13 @@ router = APIRouter(
 
 
 @router.post('/')
-async def create_scenario(scenario: SScenario, user=Depends(get_current_user)) -> SScenario:
+async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)) -> SScenario:
     # Convert Pydantic model to dict, remove the 'id' field and 'vehicles' list
-    print(user)
     scenario_json = scenario.model_dump()
-    scenario_json.pop('id')  # Remove 'id' from the input as it is auto-generated
     vehicles_json = scenario_json.pop('vehicles')  # Extract the 'vehicles' list
 
     # Create Scenario instance (without vehicles)
-    scenario_db = Scenario(**scenario_json)
+    scenario_db = Scenario(**scenario_json, owner_id=user.id)
 
     # Create a list of Vehicle instances
     vehicles = [
@@ -53,8 +51,12 @@ async def create_scenario(scenario: SScenario, user=Depends(get_current_user)) -
             vehicle.id = None
 
         # Add vehicles to the session
-        session.add_all(vehicles)
-        await session.commit()  # Commit vehicles
+        try:
+            session.add_all(vehicles)
+            await session.commit()  # Commit vehicles
+        except:
+            await session.rollback()
+            raise HTTPException(status_code=400, detail="Assigned User not found")
 
         # Re-fetch the scenario with vehicles loaded using joinedload
         result = await session.execute(
@@ -63,7 +65,6 @@ async def create_scenario(scenario: SScenario, user=Depends(get_current_user)) -
         scenario_db = result.unique().scalar_one()
 
     scenario_schema = SScenario.model_validate(scenario_db)
-    await queue.send_task(scenario_schema, "CREATE ENV")
     # Now the scenario has the vehicles linked, and we return the scenario
     return scenario_db
 
@@ -91,10 +92,14 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
     print(token)
 
     async with async_session() as session:
-        queryset = await session.execute(select(Scenario).where(Scenario.id == task_id))
-        task = queryset.scalars().one_or_none()
-        if not task:
+        result = await session.execute(
+            select(Scenario).options(joinedload(Scenario.vehicles)).filter(Scenario.id == task_id)
+        )
+        scenario_db = result.unique().scalar_one()
+        if not scenario_db:
             return await websocket.close()
+
+        scenario_schema = SScenario.model_validate(scenario_db)
 
         vehicle = await session.execute(select(Vehicle).where(Vehicle.id == vehicle_id))
 
@@ -103,7 +108,7 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
         if not vehicle:
             return await websocket.close()
 
-        if vehicle.scenario_id != task.id:
+        if vehicle.scenario_id != scenario_db.id:
             return await websocket.close()
 
         await websocket.accept(subprotocol=token)
@@ -113,12 +118,16 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
         clients[task_id].append(websocket)
 
+        await queue.send_init(scenario_schema)
+
         while True:
             try:
-                data = await websocket.receive_text()
+                try:
+                    data = await asyncio.wait_for(websocket.receive_text(), 0.02)
+                except asyncio.TimeoutError:
+                    data = "KEEP_ALIVE"
                 move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=data)
-                await queue.send_task(move, "MOVE")
-                await asyncio.sleep(0.02)
+                await queue.send_move(move)
                 try:
                     image = Image.open("/app/output.png")  # Load your image
                     img_bytes = io.BytesIO()

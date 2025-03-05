@@ -8,10 +8,12 @@ from database import init_db, deinit_db
 from routers.tasks import router as tasks_router
 from routers.auth import router as auth_router
 from queues.images import queue
+from utils import create_admin
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await create_admin()
     yield
     await deinit_db()
 

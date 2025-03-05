@@ -12,6 +12,8 @@ class Scenario(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     steps = Column(Integer)
     vehicles = relationship('Vehicle', back_populates='scenario')
+    owner_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    owner = relationship('User')
 
 class Vehicle(Base):
     __tablename__ = 'vehicle'
@@ -21,4 +23,4 @@ class Vehicle(Base):
     init_y = Column(Integer)
     init_speed = Column(Float)
     scenario = relationship('Scenario', back_populates='vehicles')
-
+    assigned_user_id = Column(Integer, ForeignKey('user.id'), nullable=False)

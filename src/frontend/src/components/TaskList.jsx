@@ -5,10 +5,12 @@ import {useNavigate} from "react-router-dom";
 const TaskList = () => {
   const [tasks, setTasks] = useState([]);
   const [newScenarioSteps, setNewScenarioSteps] = useState(0);
-  const [newScenarioVehicles, setScenarioVechiles] = useState([]);
+  const [newScenarioVehicles, setScenarioVechiles] = useState([{init_x: 0, init_y: 0, init_speed: 0, assigned_user_id:1}]);
   const [showAddScenarioForm, setShowAddScenarioForm] = useState(false);
-  const [usedVehicle, setUsedVehicle] = useState(0)
-  const navigate = useNavigate()
+  const [usedVehicle, setUsedVehicle] = useState(0);
+  const [userError, setUserError] = useState(null);
+  const navigate = useNavigate();
+
 
 
   useEffect(() => {
@@ -26,9 +28,13 @@ const TaskList = () => {
     if (res.status === 401){
         navigate('/logout', {replace: true})
     }
+    if (res.status === 400){
+        setUserError("User not found")
+        return
+    }
     const task = await res.json();
     setTasks([...tasks, task]);
-    setScenarioVechiles([]);
+    setScenarioVechiles([{init_x: 0, init_y: 0, init_speed: 0, assigned_user_id:1}]);
     setNewScenarioSteps(0);
   };
 
@@ -98,10 +104,18 @@ const TaskList = () => {
                                       onChange={(e) => handleInputChange(index, "init_speed", e.target.value)}
                                   />
                               </label>
+                              <label>
+                                  Assigned User:
+                                  <input
+                                    value={vehicle.assigned_user_id}
+                                    onChange={(e) => handleInputChange(index, "assigned_user_id", e.target.value)}
+                                  />
+                                  {userError && <span style={{ color: "red" }}>{userError}</span>}
+                              </label>
                           </div>
                       ))}
                       <button onClick={() =>
-                          setScenarioVechiles((prev) => [...prev, {init_x: 0, init_y: 0, init_speed: 0}])
+                          setScenarioVechiles((prev) => [...prev, {init_x: 0, init_y: 0, init_speed: 0, assigned_user_id:1}])
                       }>
                           Add Vehicle
                       </button>

@@ -7,14 +7,19 @@ class Vehicle(BaseModel):
     init_x: int
     init_y: int
     init_speed: float
+    assigned_user_id: Optional[int]
 
     class Config:
         from_attributes = True
 
-class Scenario(BaseModel):
-    id: Optional[int] = 5
+class ScenarioBase(BaseModel):
     steps: int
     vehicles: List[Vehicle]
+
+
+class Scenario(ScenarioBase):
+    id: Optional[int] = 5
+    owner_id: Optional[int] = None
 
     class Config:
         from_attributes = True

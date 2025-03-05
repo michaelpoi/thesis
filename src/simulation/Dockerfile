@@ -28,4 +28,4 @@ COPY . .
 
 
 # Set entrypoint
-CMD ["python", "main.py"]
+CMD ["python", "manager.py"]
