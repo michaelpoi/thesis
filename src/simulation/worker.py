@@ -2,6 +2,7 @@ import asyncio
 import base64
 import io
 import json
+import os
 from time import sleep
 from metadrive.envs import MetaDriveEnv
 from schemas import Move
@@ -10,6 +11,8 @@ from PIL import Image
 import aio_pika
 from utils import get_rabbitmq_url
 import logging
+import requests
+from metadrive.utils.draw_top_down_map import draw_top_down_map
 
 
 class Worker:
@@ -30,9 +33,15 @@ class Worker:
         config = {
             "use_render": False,
             "traffic_density": 0.1,
+            "map": self.scenario.map.layout,
         }
         self.env = MetaDriveEnv(config=config)
         self.env.reset()
+
+    def setup_vehicle(self, x, y, v):
+        ego_vehicle = self.env.agent
+        ego_vehicle.set_position([x, y])
+        ego_vehicle.set_velocity([v, 0])
 
     async def send_frame(self, image_bytes):
         connection = await aio_pika.connect_robust(self.rabbitmq_url)
@@ -77,7 +86,28 @@ class Worker:
 
     async def run(self):
         self.setup_env()
+        ego_vehicle = self.scenario.vehicles[0]
+        self.setup_vehicle(ego_vehicle.init_x, ego_vehicle.init_y, ego_vehicle.init_speed)
         await self.consume_moves()
+
+    def map_preview(self):
+        self.setup_env()
+        m = draw_top_down_map(self.env.current_map)
+        bytes_io = io.BytesIO()
+        img = Image.fromarray(m)
+        img.save(bytes_io, format="PNG")
+        image_bytes = bytes_io.getvalue()
+
+        files = {
+            'image': ('file.png', image_bytes, 'image/png'),
+        }
+
+        response = requests.post(f"{os.getenv('API_URL')}/maps/{self.scenario.map.id}", files=files)
+
+        print(response.json())
+
+        return
+
 
     def work(self):
         logging.warn(f"Starting worker process {self.scenario.id}")

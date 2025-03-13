@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from schemas.maps import Map
 
 class Vehicle(BaseModel):
     id: int = Field(None)
@@ -15,11 +16,13 @@ class Vehicle(BaseModel):
 class ScenarioBase(BaseModel):
     steps: int
     vehicles: List[Vehicle]
+    map: int
 
 
 class Scenario(ScenarioBase):
     id: Optional[int] = 5
     owner_id: Optional[int] = None
+    map: Map
 
     class Config:
         from_attributes = True

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./task_list.css"
 import {useNavigate} from "react-router-dom";
+import {fetchWithAuth} from "../utils/api";
 
 const TaskList = () => {
   const [tasks, setTasks] = useState([]);
@@ -10,7 +11,19 @@ const TaskList = () => {
   const [usedVehicle, setUsedVehicle] = useState(0);
   const [userError, setUserError] = useState(null);
   const navigate = useNavigate();
+  const [maps, setMaps] = useState([]);
+  const [selectedMap, setSelectedMap] = useState('');
 
+
+  useEffect(() => {
+        fetchWithAuth(`${process.env.REACT_APP_API_URL}/maps/`)
+            .then(data => {
+                console.log(data)
+                if (data){
+                    setMaps(data)
+                }
+            })
+    }, []);
 
 
   useEffect(() => {
@@ -23,7 +36,7 @@ const TaskList = () => {
     const res = await fetch("http://localhost:8000/tasks/", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem('token')}` },
-      body: JSON.stringify({ steps: newScenarioSteps, vehicles: newScenarioVehicles }),
+      body: JSON.stringify({ steps: newScenarioSteps, vehicles: newScenarioVehicles, map:selectedMap }),
     });
     if (res.status === 401){
         navigate('/logout', {replace: true})
@@ -71,6 +84,15 @@ const TaskList = () => {
 
           {showAddScenarioForm ? (
               <div className="add_scenario">
+                  <label>
+                      Map
+                      <select value={selectedMap} onChange={(e) => setSelectedMap(e.target.value)}>
+                        <option value="" disabled>Select an option</option>
+                            {maps.map((option, index) => (
+                        <option key={index} value={option.id}>{option.label}</option>
+                        ))}
+        </select>
+                  </label>
                   <label>
                       Scenario Steps
                       <input

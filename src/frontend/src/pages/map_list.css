@@ -1,0 +1,95 @@
+.map_list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 100%;
+  max-width: 600px;
+  margin: 30px auto;
+  padding: 20px;
+  background: #f9f9f9;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.map_card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 5px solid #007BFF;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.map_card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2);
+}
+
+.map_info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.add_map_button {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s;
+  margin-top: 20px;
+}
+
+.preview_map_button {
+  background: yellowgreen;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s;
+  margin-top: 20px;
+}
+
+.add_map_button:hover {
+  background: #218838;
+}
+
+.map_info img {
+  max-width: 100%;
+  height: auto;
+  margin-top: 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.map_info button {
+  background: #007BFF;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.2s;
+  margin-top: 10px;
+}
+
+.map_info button:hover {
+  background: #0056b3;
+  transform: scale(1.05);
+}

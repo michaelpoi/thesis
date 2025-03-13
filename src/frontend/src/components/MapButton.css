@@ -1,0 +1,29 @@
+.map_button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 60px; /* Fixed width for uniformity */
+  height: 60px; /* Fixed height for uniformity */
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin: 10px; /* Add some spacing between buttons */
+}
+
+.map_button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 123, 255, 0.2);
+}
+
+.map_button_image {
+  width: 40px; /* Set image size inside button */
+  height: 40px;
+  object-fit: contain; /* Keep image within button without distortion */
+  transition: opacity 0.3s;
+}
+
+.map_button_image:hover {
+  opacity: 0.8;
+}

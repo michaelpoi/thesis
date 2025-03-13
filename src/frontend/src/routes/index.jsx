@@ -6,6 +6,9 @@ import Home from "../pages/home";
 import Register from "../pages/Register";
 import Logout from "../pages/Logout";
 import Scenario from "../pages/Scenario";
+import MapList from "../pages/MapList";
+import mapCreator from "../pages/MapCreator";
+import MapCreator from "../pages/MapCreator";
 
 const Routes = () => {
   const { token } = useAuth();
@@ -39,6 +42,14 @@ const Routes = () => {
           path: "/logout",
           element: <Logout/>,
         },
+        {
+          path: "/maps",
+          element: <MapList/>
+        },
+        {
+          path: "/creator",
+          element: <MapCreator/>
+        }
       ],
     },
   ];

@@ -1,4 +1,5 @@
-from typing import List
+
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -24,7 +25,15 @@ class Vehicle(BaseModel):
     init_y: int
     init_speed: float
 
+class Map(BaseModel):
+    id: int
+    layout: str
+    image: Optional[str]
+
 class InitEnv(BaseModel):
     id: int
     steps: int
     vehicles: List[Vehicle]
+    map: Map
+
+

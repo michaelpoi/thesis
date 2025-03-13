@@ -59,7 +59,9 @@ services:
 
     depends_on:
       - rabbitmq
+      - api
     environment:
       - rq_host=rabbitmq
+      - API_URL=http://api:8000
 
 

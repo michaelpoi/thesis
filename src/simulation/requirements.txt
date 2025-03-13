@@ -34,6 +34,7 @@ pillow==11.1.0
 platformdirs==4.3.6
 progressbar==2.5
 prompt_toolkit==3.0.50
+requests
 propcache==0.2.1
 psutil==6.1.1
 ptyprocess==0.7.0

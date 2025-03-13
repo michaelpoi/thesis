@@ -1,18 +1,21 @@
 import numpy as np
 
 class MoveConverter:
-    @staticmethod
-    def convert(move):
+
+    acceleration_delta = 0.3
+    steering_delta = 0.3
+    @classmethod
+    def convert(cls, move):
         steering = 0
         acceleration = 0
         if move.direction == 'UP':
-            acceleration += 1
+            acceleration += cls.acceleration_delta
         elif move.direction == 'DOWN':
-            acceleration -= 1
+            acceleration -= cls.acceleration_delta
         elif move.direction == 'LEFT':
-            steering -= 1
+            steering += cls.steering_delta
         elif move.direction == 'RIGHT':
-            steering += 1
+            steering -= cls.steering_delta
 
         return np.array([steering, acceleration])
 

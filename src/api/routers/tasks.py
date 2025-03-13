@@ -6,7 +6,7 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 from fastapi import APIRouter, Depends
 
 from models import scenario
-from models.scenario import Scenario, Vehicle
+from models.scenario import Scenario, Vehicle, Map
 from database import async_session
 from schemas.results import Scenario as SScenario, Vehicle as SVehicle, ScenarioBase as SScenarioAdd
 from sqlalchemy.future import select
@@ -27,9 +27,10 @@ async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)
     # Convert Pydantic model to dict, remove the 'id' field and 'vehicles' list
     scenario_json = scenario.model_dump()
     vehicles_json = scenario_json.pop('vehicles')  # Extract the 'vehicles' list
+    map_id = scenario_json.pop('map')
 
     # Create Scenario instance (without vehicles)
-    scenario_db = Scenario(**scenario_json, owner_id=user.id)
+    scenario_db = Scenario(**scenario_json, owner_id=user.id, map_id=map_id)
 
     # Create a list of Vehicle instances
     vehicles = [
@@ -39,6 +40,10 @@ async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)
 
     # Using async session to commit the transaction
     async with async_session() as session:
+        result = await session.execute(select(Map).where(Map.id == scenario_db.map_id))
+        map_obj = result.scalar_one_or_none()
+        if not map_obj:
+            raise HTTPException(status_code=404, detail="Map not found")
         # Add the scenario first
         session.add(scenario_db)
         await session.commit()  # Commit to generate the scenario.id
@@ -60,11 +65,11 @@ async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)
 
         # Re-fetch the scenario with vehicles loaded using joinedload
         result = await session.execute(
-            select(Scenario).options(joinedload(Scenario.vehicles)).filter(Scenario.id == scenario_db.id)
+            select(Scenario).options(joinedload(Scenario.vehicles), joinedload(Scenario.map)).filter(Scenario.id == scenario_db.id)
         )
         scenario_db = result.unique().scalar_one()
 
-    scenario_schema = SScenario.model_validate(scenario_db)
+    # scenario_schema = SScenario.model_validate(scenario_db)
     # Now the scenario has the vehicles linked, and we return the scenario
     return scenario_db
 
@@ -73,7 +78,7 @@ async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)
 async def list_all_tasks() -> List[SScenario]:
     async with async_session() as session:
         queryset = await session.execute(
-            select(Scenario).options(joinedload(Scenario.vehicles))
+            select(Scenario).options(joinedload(Scenario.vehicles), joinedload(Scenario.map))
         )
 
     return queryset.unique().scalars().all()
@@ -93,7 +98,7 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
     async with async_session() as session:
         result = await session.execute(
-            select(Scenario).options(joinedload(Scenario.vehicles)).filter(Scenario.id == task_id)
+            select(Scenario).options(joinedload(Scenario.vehicles), joinedload(Scenario.map)).filter(Scenario.id == task_id)
         )
         scenario_db = result.unique().scalar_one()
         if not scenario_db:
@@ -101,7 +106,8 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
         scenario_schema = SScenario.model_validate(scenario_db)
 
-        vehicle = await session.execute(select(Vehicle).where(Vehicle.id == vehicle_id))
+        vehicle = await session.execute(select(Vehicle)
+                                        .where(Vehicle.id == vehicle_id))
 
         vehicle = vehicle.scalars().one_or_none()
 

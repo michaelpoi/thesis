@@ -27,10 +27,17 @@ class Manager:
                     await self.add_process(body)
 
 
-
+    async def handle_preview(self, scenario):
+        worker = Worker(scenario)
+        process = Process(target=worker.map_preview)
+        process.start()
+        process.join()
+        return
 
     async def add_process(self, body):
         scenario = InitEnv(**body)
+        if not scenario.map.image:
+            return await self.handle_preview(scenario)
         if scenario.id not in self.workers:
             worker = Worker(scenario)
             process = Process(target=worker.work)

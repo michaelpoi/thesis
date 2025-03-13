@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pathlib import Path
 
 class Settings(BaseSettings):
     SECRET_KEY: str = "DEBUG"
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
     rq_password: str = "guest"
     task_queue: str = "task_queue"
     result_queue: str = "result_queue"
+    static_folder: str = "static"
 
     @property
     def rabbitmq_url(self):
@@ -30,6 +32,14 @@ class Settings(BaseSettings):
                                                             self.db_host,
                                                             self.db_port,
                                                             self.db_name)
+
+    @property
+    def base_dir(self) -> Path:
+        return Path(__file__).resolve().parent
+
+    @property
+    def static_dir(self) -> Path:
+        return self.base_dir / self.static_folder
 
     class Config:
         env_file = ".env"
