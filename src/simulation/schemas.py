@@ -36,4 +36,13 @@ class InitEnv(BaseModel):
     vehicles: List[Vehicle]
     map: Map
 
+class DiscreteMove(BaseModel):
+    steps: int
+    steering: float
+    acceleration: float
+
+class OfflineScenarioPreview(BaseModel):
+    scenario_id: int
+    moves: List[DiscreteMove]
+
 

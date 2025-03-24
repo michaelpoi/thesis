@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     def static_dir(self) -> Path:
         return self.base_dir / self.static_folder
 
+
     class Config:
         env_file = ".env"
 

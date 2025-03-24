@@ -2,17 +2,15 @@ import os
 
 from fastapi.exceptions import HTTPException
 
-from anyio.streams import file
 from fastapi import APIRouter, UploadFile, File
 from schemas.maps import BaseMap as SAddMap, Map as SMap, NamedMap as SNamedMap
 from database import async_session
-from sqlalchemy import Select, Delete
-import asyncio
 from schemas.results import Scenario as SScenario
 from queues.queue import queue
 
 from models.scenario import Map
 from settings import settings
+from db.map_repository import MapRepository
 
 router = APIRouter(
     prefix='/maps',
@@ -21,28 +19,18 @@ router = APIRouter(
 
 @router.get('/')
 async def list_maps():
-    async with async_session() as session:
-        queryset = await session.execute(Select(Map))
-        maps = queryset.unique().scalars().all()
-    return maps
+    return await MapRepository.get_all_maps()
 
 @router.delete('/{map_id}')
 async def delete_map(map_id: int):
-    async with async_session() as session:
-        await session.execute(Delete(Map).where(Map.id == map_id))
-        await session.commit()
+    await MapRepository.delete_map(map_id)
 
     return {'message': 'Map deleted'}
 
 
 @router.post("/")
-async def create_map(map: SNamedMap):
-    map_db = Map(**map.model_dump())
-
-    async with async_session() as session:
-        session.add(map_db)
-        await session.commit()
-        await session.refresh(map_db)
+async def create_map(smap: SNamedMap):
+    map_db = await MapRepository.create_map(smap.label, smap.layout)
 
 
     # Send preview map image signal
@@ -71,14 +59,7 @@ async def queue_map_preview(map_db: Map):
 
 @router.put("/{map_id}")
 async def update_map(map_id: int, smap: SAddMap):
-    async with async_session() as session:
-        map_obj = await session.get(Map, map_id)
-        if not map_obj:
-            raise HTTPException(status_code=404, detail="Map not found")
-
-        map_obj.layout = smap.layout
-
-        await session.commit()
+    map_obj = await MapRepository.update_map(map_id, smap.layout)
 
     await queue_map_preview(map_obj)
 
@@ -86,11 +67,9 @@ async def update_map(map_id: int, smap: SAddMap):
 
 @router.get('/{map_id}')
 async def preview_map(map_id: int):
-    async with async_session() as session:
-        queryset = await session.execute(Select(Map).where(Map.id == map_id))
-        map_db = queryset.scalar_one_or_none()
-        if not map_db:
-            raise HTTPException(status_code=404, detail="Map not found")
+    map_db = await MapRepository.get_map_by_id(map_id)
+    if not map_db:
+        raise HTTPException(status_code=404, detail="Map not found")
 
     sample_scenario = SScenario(id=1231,
                                 vehicles=[],
@@ -113,10 +92,6 @@ async def upload_map_image(map_id: int, image: UploadFile = File(...)):
     with open(filepath, "wb+") as f:
         f.write(image.file.read())
 
-    async with async_session() as session:
-        result = await session.execute(Select(Map).where(Map.id == map_id))
-        map_obj = result.scalar()
-        map_obj.image = filename
-        await session.commit()
+    await MapRepository.set_map_image(map_id, filename)
 
     return {"filename": filename}

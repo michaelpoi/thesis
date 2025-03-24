@@ -2,6 +2,7 @@ import {useState, useEffect} from "react";
 import {fetchWithAuth} from "../utils/api";
 import './map_list.css';
 import {useNavigate} from "react-router-dom";
+import Header from "../components/Header";
 
 const MapList = () => {
     const [maps, setMaps] = useState([])
@@ -27,6 +28,7 @@ const MapList = () => {
 
     return (
         <>
+            <Header></Header>
         <div className="map_list">
             <h2>Maps</h2>
             {maps.map((map) => (

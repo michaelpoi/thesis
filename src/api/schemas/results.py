@@ -22,6 +22,7 @@ class ScenarioBase(BaseModel):
 class Scenario(ScenarioBase):
     id: Optional[int] = 5
     owner_id: Optional[int] = None
+    status: Optional[str]
     map: Map
 
     class Config:

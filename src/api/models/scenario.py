@@ -1,11 +1,17 @@
 from models.base import Base
-from sqlalchemy import Column, Integer, String, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, ForeignKey, Float, Enum
 from sqlalchemy.orm import relationship
+import enum
 
 # class SampleTask(Base):
 #     __tablename__ = 'sample_task'
 #     id = Column(Integer, primary_key=True, autoincrement=True)
 #     name = Column(String)
+
+class ScenarioStatus(enum.Enum):
+    CREATED = "CREATED"
+    STARTED = "STARTED"
+    FINISHED = "FINISHED"
 
 class Scenario(Base):
     __tablename__ = 'scenario'
@@ -16,6 +22,7 @@ class Scenario(Base):
     owner = relationship('User')
     map_id = Column(Integer, ForeignKey('map.id'), nullable=False)
     map = relationship('Map')
+    status = Column(Enum(ScenarioStatus), nullable=False, default=ScenarioStatus.CREATED)
     # map = Column(String, nullable=False)
 
 class Map(Base):

@@ -1,0 +1,99 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 15px 20px;
+  background: #f9f9f9;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.header h1 {
+  font-size: 22px;
+  color: #007BFF;
+  font-weight: bold;
+}
+
+/* Navigation Container */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+/* Maps Dropdown */
+.dropdown {
+  position: relative;
+}
+
+.nav_button {
+  background: #007BFF;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.nav_button:hover {
+  background: #0056b3;
+}
+
+/* Dropdown Menu */
+.dropdown_menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  min-width: 150px;
+}
+
+.dropdown_menu a {
+  display: block;
+  padding: 10px;
+  color: #333;
+  text-decoration: none;
+  transition: background 0.3s;
+}
+
+.dropdown_menu a:hover {
+  background: #f0f0f0;
+}
+
+/* Authentication Buttons */
+.auth_button {
+  padding: 8px 15px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s;
+  border: none;
+}
+
+.login {
+  background: #28a745;
+  color: white;
+}
+
+.login:hover {
+  background: #218838;
+}
+
+.logout {
+  background: #dc3545;
+  color: white;
+}
+
+.logout:hover {
+  background: #c82333;
+}

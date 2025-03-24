@@ -1,9 +1,12 @@
+import base64
 from typing import List
 import asyncio
 import io
 from fastapi.exceptions import HTTPException
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from fastapi import APIRouter, Depends
+
+from db.scenario_repository import ScenarioRepository
 
 from models import scenario
 from models.scenario import Scenario, Vehicle, Map
@@ -15,6 +18,8 @@ from sqlalchemy.orm import joinedload
 from schemas.results import Move
 from auth.auth import get_current_user
 from PIL import Image
+
+from models.scenario import ScenarioStatus
 
 router = APIRouter(
     prefix='/tasks',
@@ -30,45 +35,15 @@ async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)
     map_id = scenario_json.pop('map')
 
     # Create Scenario instance (without vehicles)
-    scenario_db = Scenario(**scenario_json, owner_id=user.id, map_id=map_id)
+    scenario = Scenario(**scenario_json, owner_id=user.id, map_id=map_id)
 
     # Create a list of Vehicle instances
     vehicles = [
-        Vehicle(scenario_id=scenario_db.id, **vehicle)
+        Vehicle(scenario_id=scenario.id, **vehicle)
         for vehicle in vehicles_json
     ]
-
     # Using async session to commit the transaction
-    async with async_session() as session:
-        result = await session.execute(select(Map).where(Map.id == scenario_db.map_id))
-        map_obj = result.scalar_one_or_none()
-        if not map_obj:
-            raise HTTPException(status_code=404, detail="Map not found")
-        # Add the scenario first
-        session.add(scenario_db)
-        await session.commit()  # Commit to generate the scenario.id
-        await session.refresh(scenario_db)  # Refresh the scenario to get the id back
-
-        # After the scenario is created, link the vehicles to the scenario
-        for vehicle in vehicles:
-            # Ensure that vehicles have the correct foreign key (scenario_id)
-            vehicle.scenario_id = scenario_db.id  # Set foreign key before adding to session
-            vehicle.id = None
-
-        # Add vehicles to the session
-        try:
-            session.add_all(vehicles)
-            await session.commit()  # Commit vehicles
-        except:
-            await session.rollback()
-            raise HTTPException(status_code=400, detail="Assigned User not found")
-
-        # Re-fetch the scenario with vehicles loaded using joinedload
-        result = await session.execute(
-            select(Scenario).options(joinedload(Scenario.vehicles), joinedload(Scenario.map)).filter(Scenario.id == scenario_db.id)
-        )
-        scenario_db = result.unique().scalar_one()
-
+    scenario_db = await ScenarioRepository.create_scenario(scenario, vehicles)
     # scenario_schema = SScenario.model_validate(scenario_db)
     # Now the scenario has the vehicles linked, and we return the scenario
     return scenario_db
@@ -76,12 +51,7 @@ async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)
 
 @router.get('/')
 async def list_all_tasks() -> List[SScenario]:
-    async with async_session() as session:
-        queryset = await session.execute(
-            select(Scenario).options(joinedload(Scenario.vehicles), joinedload(Scenario.map))
-        )
-
-    return queryset.unique().scalars().all()
+    return await ScenarioRepository.get_all()
 
 clients = {}
 @router.websocket('/ws/{task_id}/{vehicle_id}/')
@@ -97,12 +67,10 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
     print(token)
 
     async with async_session() as session:
-        result = await session.execute(
-            select(Scenario).options(joinedload(Scenario.vehicles), joinedload(Scenario.map)).filter(Scenario.id == task_id)
-        )
-        scenario_db = result.unique().scalar_one()
-        if not scenario_db:
-            return await websocket.close()
+        scenario_db = await ScenarioRepository.get_scenario(session, task_id)
+        scenario_db.status = ScenarioStatus.STARTED
+
+        await session.commit()
 
         scenario_schema = SScenario.model_validate(scenario_db)
 
@@ -126,7 +94,7 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
         await queue.send_init(scenario_schema)
 
-        while True:
+        for step in range(1, scenario_db.steps + 1):
             try:
                 try:
                     data = await asyncio.wait_for(websocket.receive_text(), 0.02)
@@ -135,16 +103,27 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                 move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=data)
                 await queue.send_move(move)
                 try:
-                    image = Image.open("/app/output.png")  # Load your image
+                    image = Image.open(f"/app/{scenario_db.id}.png")
                     img_bytes = io.BytesIO()
                     image.save(img_bytes, format="PNG")  # Convert to PNG format
                     img_bytes.seek(0)  # Reset cursor to start of the file
 
                     # Send the image as bytes
-                    await websocket.send_bytes(img_bytes.getvalue())
+                    encoded_image = base64.b64encode(img_bytes.getvalue()).decode('utf-8')
+
+                    # Create a JSON message containing step and image
+                    message = {
+                        "step": step,
+                        "image": encoded_image
+                    }
+
+
+                    # Send the JSON message
+                    await websocket.send_json(message)
                 except:
                     pass
             except WebSocketDisconnect:
+                clients[task_id].remove(websocket)
                 # await websocket.close()
                 break
 

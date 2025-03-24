@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import "./task_list.css"
 import {useNavigate} from "react-router-dom";
 import {fetchWithAuth} from "../utils/api";
+import Header from "./Header";
 
 const TaskList = () => {
   const [tasks, setTasks] = useState([]);

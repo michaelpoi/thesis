@@ -75,9 +75,11 @@ const Register = () => {
           {/*{errors.password && <span className="error">{errors.password}</span>}*/}
         </div>
         <button type="submit" className="submit-button">
-          Login
+          Create an account
         </button>
       </form>
+      <span>Already have an account?</span>
+      <span><a href="/login">Login here</a> </span>
     </div>
   )
 };

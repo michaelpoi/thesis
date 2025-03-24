@@ -3,6 +3,7 @@ import MapButton from "../components/MapButton";
 import './MapCreator.css';
 import {fetchWithAuth} from "../utils/api";
 import {useNavigate} from "react-router-dom";
+import Header from "../components/Header";
 
 const MapCreator = () =>{
     const [code, setCode] = useState('');
@@ -59,7 +60,9 @@ const MapCreator = () =>{
     const blocks = ["S", "r", "O", "y", "$", "T", "C", "R", "X", "Y"]
 
     return (
-        <div className="map_add">
+        <>
+            <Header></Header>
+            <div className="map_add">
             <h2>Map Creator</h2>
             {mapId && <h3>Map: {label}</h3>}
             {!mapId &&
@@ -104,6 +107,7 @@ const MapCreator = () =>{
             }
 
         </div>
+        </>
     );
 }
 

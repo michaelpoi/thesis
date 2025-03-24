@@ -6,6 +6,7 @@ from auth.schemas import Token, TokenData, AddUser, User as SUser
 from auth.auth import authenticate_user, create_access_token
 from fastapi.security import OAuth2PasswordRequestForm
 from db.user_repository import UserRepository
+from auth.auth import get_current_user
 
 from settings import settings
 
@@ -38,4 +39,8 @@ async def register(user: AddUser):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    return user
+
+@router.get("/me", response_model=SUser)
+async def me(user=Depends(get_current_user)):
     return user

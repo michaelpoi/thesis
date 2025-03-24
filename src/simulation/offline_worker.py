@@ -5,7 +5,8 @@ import json
 import os
 from time import sleep
 from metadrive.envs import MetaDriveEnv
-from schemas import Move
+import numpy as np
+from schemas import OfflineScenarioPreview, DiscreteMove
 from core.move_converter import MoveConverter
 from PIL import Image
 import aio_pika
@@ -37,12 +38,6 @@ class Worker:
         self.connection = None
         self.current_step = 0
 
-    def get_vehicle_config(self):
-        return dict(
-            show_dest_mark = True,
-
-        )
-
     async def get_connection(self):
         # # if not self.connection:
         # self.connection =
@@ -51,19 +46,18 @@ class Worker:
 
     @property
     def move_queue_name(self):
-        return f"moves_{self.scenario.id}"
+        return f"offline_{self.scenario.id}"
 
     @property
     def results_queue_name(self):
-        return f"images_queue"
+        return f"offline_queue"
+
 
     def setup_env(self):
         config = {
             "use_render": False,
             "traffic_density": 0.1,
             "map": self.scenario.map.layout,
-            "vehicle_config": self.get_vehicle_config(),
-            "out_of_road_done": False
         }
         self.env = MetaDriveEnv(config=config)
         self.env.reset()
@@ -114,15 +108,8 @@ class Worker:
                 aio_pika.Message(body=message_data),
                 routing_key=self.results_queue_name,
             )
-            logging.warning(f"Shutting down worker {self.scenario.id}")
-            exit(0)
 
-    async def process_move(self, move: Move):
-        move_arr = MoveConverter.convert(move)
-        obs, reward, tm, tr, info = self.env.step(move_arr)
-        if tm:
-            await self.process_finish(info)
-
+    async def send_current_frame(self):
         image = self.env.render(mode='topdown', window=False)
 
         bytes_io = io.BytesIO()
@@ -131,6 +118,13 @@ class Worker:
         image_bytes = bytes_io.getvalue()
 
         await self.send_frame(image_bytes)
+
+    async def process_move(self, move: DiscreteMove):
+        move_arr = np.array([move.steering, move.acceleration])
+        obs, reward, tm, tr, info = self.env.step(move_arr)
+        if tm:
+            await self.process_finish(info)
+            return False
         self.current_step += 1
         return True
 
@@ -143,8 +137,10 @@ class Worker:
             async for message in queue:
                 async with message.process():
                     move_json = json.loads(message.body)
-                    move = Move(**move_json)
-                    await self.process_move(move)
+                    move = OfflineScenarioPreview(**move_json)
+                    for move in move.moves:
+                        await self.process_move(move.moves)
+                        await self.send_current_frame()
 
     async def run(self):
         self.setup_env()
