@@ -74,6 +74,18 @@ class Worker:
         ego_vehicle.set_velocity([v, 0])
 
 
+    def generate_gif(self):
+        filename = f"{self.scenario.id}.gif"
+        self.env.top_down_renderer.generate_gif(gif_name=filename)
+
+        with open(filename, "rb") as f:
+            gif_data = f.read()
+
+        return base64.b64encode(gif_data).decode('utf-8')
+
+
+
+
 
 
     async def send_frame(self, image_bytes):
@@ -105,7 +117,8 @@ class Worker:
             message_body = {
                 "scenario_id": self.scenario.id,
                 "status": "FINISHED",
-                "reason": get_termination_reason(info)
+                "reason": get_termination_reason(info),
+                "gif": self.generate_gif(),
             }
 
             message_data = json.dumps(message_body).encode("utf-8")
@@ -123,7 +136,7 @@ class Worker:
         if tm:
             await self.process_finish(info)
 
-        image = self.env.render(mode='topdown', window=False)
+        image = self.env.render(mode='topdown', window=False, screen_record=True)
 
         bytes_io = io.BytesIO()
         img = Image.fromarray(image)

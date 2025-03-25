@@ -12,6 +12,8 @@ from models.scenario import Map
 from settings import settings
 from db.map_repository import MapRepository
 
+from models.scenario import ScenarioStatus
+
 router = APIRouter(
     prefix='/maps',
     tags=['maps']
@@ -51,6 +53,7 @@ async def queue_map_preview(map_db: Map):
                                 owner_id=1232,
                                 steps=1000,
                                 map=map_schema,
+                                status=ScenarioStatus.FINISHED
                                 )
 
     await queue.send_init(sample_scenario)
@@ -75,6 +78,7 @@ async def preview_map(map_id: int):
                                 vehicles=[],
                                 owner_id=1232,
                                 steps=1000,
+                                status=ScenarioStatus.FINISHED,
                                 map=Map(id=map_db.id, layout=map_db.layout, image=None),
                                 )
     await queue.send_init(scenario=sample_scenario)

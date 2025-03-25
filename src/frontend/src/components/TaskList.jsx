@@ -58,6 +58,10 @@ const TaskList = () => {
       })
   }
 
+  const onExamine = (task) => {
+      navigate(`/result/${task.id}`)
+  }
+
   const handleInputChange = (index, key, value) => {
     setScenarioVechiles((prev) =>
       prev.map((v, i) => (i === index ? { ...v, [key]: value } : v))
@@ -78,7 +82,12 @@ const TaskList = () => {
               {tasks.map((task) => (
                   <div key={task.id} className="scenario_card">
                       Scenario #{task.id} (vehicles {task.vehicles.map((vehicle) => (`${vehicle.id} `))})
+                      {task.status === 'FINISHED' ?
+                          <button className="connect_button" onClick={() => onExamine(task)}>Examine</button>
+                          :
                       <button className="connect_button" onClick={() => onConnect(task)}>Connect</button>
+                      }
+
                   </div>
               ))}
           </div>

@@ -40,7 +40,7 @@ const Scenario = () => {
 
     ws.current = socket; // Store socket in ref
 
-    socket.onmessage = async (event) => {
+    socket.onmessage = (event) => {
     try {
       // The message is already a string, parse it directly
       const data = JSON.parse(event.data);
@@ -59,6 +59,25 @@ const Scenario = () => {
       setImageSrc(url); // Set image source
     } catch (error) {
       console.error("Error processing WebSocket message:", error);
+    }
+
+    socket.onerror = () => {
+      navigate('/', {replace: true})
+    }
+
+    socket.onclose = (event) => {
+      console.log(`websocket closed code: ${event.code}`)
+      switch (event.code){
+        case 1000:
+          navigate(`/result/${task.id}/`, {replace: true});
+          break;
+        case 4001:
+          navigate(`/login`, {replace: true});
+          break;
+        case 1008:
+          navigate(`/result/${task.id}/`, {replace: true});
+          break;
+      }
     }
   };
 

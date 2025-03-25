@@ -63,11 +63,16 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
         print(f"Websocket user {user}")
 
     except Exception:
-        await websocket.close(code=1008)
+        await websocket.close(code=4001)
     print(token)
 
     async with async_session() as session:
         scenario_db = await ScenarioRepository.get_scenario(session, task_id)
+
+        if scenario_db.status == ScenarioStatus.FINISHED:
+            await websocket.close(code=1008)
+            return
+
         scenario_db.status = ScenarioStatus.STARTED
 
         await session.commit()
@@ -100,6 +105,12 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                     data = await asyncio.wait_for(websocket.receive_text(), 0.02)
                 except asyncio.TimeoutError:
                     data = "KEEP_ALIVE"
+
+                await session.refresh(scenario_db)
+                if scenario_db.status == ScenarioStatus.FINISHED:
+                    print("Scenario finished")
+                    await websocket.close(code=1008)
+
                 move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=data)
                 await queue.send_move(move)
                 try:
@@ -124,7 +135,7 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                     pass
             except WebSocketDisconnect:
                 clients[task_id].remove(websocket)
-                # await websocket.close()
+                #await websocket.close()
                 break
 
 
