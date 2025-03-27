@@ -23,10 +23,8 @@ class ImageQueue:
 
         decoded_bytes = base64.b64decode(image_bytes)
 
-        io_bytes = io.BytesIO(decoded_bytes)
-
         with open(file_name, "wb+") as f:
-            f.write(io_bytes.getvalue())
+            f.write(decoded_bytes)
 
     def save_gif(self, scenario_id, gif_bytes):
         gif_path = settings.static_dir / "gifs" / f"{scenario_id}.gif"

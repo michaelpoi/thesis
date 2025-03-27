@@ -62,6 +62,10 @@ const TaskList = () => {
       navigate(`/result/${task.id}`)
   }
 
+  const onOffline = (task) => {
+      navigate(`offline/${task.id}`)
+  }
+
   const handleInputChange = (index, key, value) => {
     setScenarioVechiles((prev) =>
       prev.map((v, i) => (i === index ? { ...v, [key]: value } : v))
@@ -88,13 +92,16 @@ const TaskList = () => {
                       <button className="connect_button" onClick={() => onConnect(task)}>Connect</button>
                       }
 
+                      <button className="connect_button" onClick={() => onOffline(task)}>Offline</button>
+
                   </div>
               ))}
           </div>
 
           {showAddScenarioForm ? (
               <div className="add_scenario">
-                  <label>
+                  <div className="form_content">
+                      <label>
                       Map
                       <select value={selectedMap} onChange={(e) => setSelectedMap(e.target.value)}>
                         <option value="" disabled>Select an option</option>
@@ -155,6 +162,8 @@ const TaskList = () => {
 
                   <button className="create-task-button" onClick={createTask}>Create Task</button>
                   <button className="close_add_scenario" onClick={() => setShowAddScenarioForm(false)}>Close</button>
+                  </div>
+
               </div>
           ) : (
               <button className="open_add_scenario" onClick={() => setShowAddScenarioForm(true)}>Add Scenario</button>

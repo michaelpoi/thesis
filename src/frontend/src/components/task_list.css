@@ -169,13 +169,24 @@ select:focus {
   left: 50%;
   transform: translate(-50%, -50%);
   width: 400px;
+  max-height: 80vh; /* Limits height to prevent overflow */
   background: white;
   padding: 20px;
   border-radius: 10px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   z-index: 1000;
   text-align: center;
+  display: flex;
+  flex-direction: column;
 }
+
+.add_scenario .form_content {
+  flex: 1;
+  overflow-y: auto; /* Enables vertical scrolling */
+  max-height: 60vh; /* Adjust to fit within modal */
+  padding-right: 10px; /* Prevents content from touching scrollbar */
+}
+
 
 /* Dark Background Overlay */
 .add_scenario::before {

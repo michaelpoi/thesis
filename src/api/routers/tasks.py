@@ -99,10 +99,10 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
         await queue.send_init(scenario_schema)
 
-        for step in range(1, scenario_db.steps + 1):
+        while True:
             try:
                 try:
-                    data = await asyncio.wait_for(websocket.receive_text(), 0.02)
+                    data = await asyncio.wait_for(websocket.receive_text(), 0.03)
                 except asyncio.TimeoutError:
                     data = "KEEP_ALIVE"
 
@@ -120,17 +120,9 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                     img_bytes.seek(0)  # Reset cursor to start of the file
 
                     # Send the image as bytes
-                    encoded_image = base64.b64encode(img_bytes.getvalue()).decode('utf-8')
-
-                    # Create a JSON message containing step and image
-                    message = {
-                        "step": step,
-                        "image": encoded_image
-                    }
-
 
                     # Send the JSON message
-                    await websocket.send_json(message)
+                    await websocket.send_bytes(img_bytes)
                 except:
                     pass
             except WebSocketDisconnect:

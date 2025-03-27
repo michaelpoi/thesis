@@ -15,7 +15,7 @@ const MapCreator = () =>{
     useEffect(() => {
         if (!mapId) return
         const interval = setInterval(() => {
-            setImageSrc(`http://0.0.0.0:8000/static/${mapId}.png?t=${Date.now()}`);
+            setImageSrc(`${process.env.REACT_APP_API_URL}/static/${mapId}.png?t=${Date.now()}`);
         }, 3000); // Check every 3 seconds
 
         return () => clearInterval(interval);
@@ -42,7 +42,7 @@ const MapCreator = () =>{
     }
 
     const handleUpdate = () => {
-        const response = fetch(`http://0.0.0.0:8000/maps/${mapId}?t=${Date.now()}`,
+        const response = fetch(`${process.env.REACT_APP_API_URL}/maps/${mapId}?t=${Date.now()}`,
             {
                 method: "PUT",
                 headers: {

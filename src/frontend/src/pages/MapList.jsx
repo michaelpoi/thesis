@@ -19,7 +19,7 @@ const MapList = () => {
     }, []);
 
     const handlePreview = (map_id) => {
-        const response = fetch(`http://0.0.0.0:8000/maps/${map_id}?t=${new Date().getTime()}`)
+        const response = fetch(`${process.env.REACT_APP_API_URL}/maps/${map_id}?t=${new Date().getTime()}`)
         setTimeout(() => {
             document.location.reload();
         }, 500)
@@ -37,7 +37,7 @@ const MapList = () => {
                         <h2>{map.label}</h2>
                         <span>Layout: {map.layout}</span>
                         {map.image ? (
-    <img alt="no image" src={`http://0.0.0.0:8000/static/${map.image}`} />
+    <img alt="no image" src={`${process.env.REACT_APP_API_URL}/static/${map.image}`} />
 ) : (
     <button onClick={() => handlePreview(map.id)}>Preview</button>
 )}

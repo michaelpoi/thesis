@@ -10,6 +10,7 @@ import MapList from "../pages/MapList";
 import mapCreator from "../pages/MapCreator";
 import MapCreator from "../pages/MapCreator";
 import Result from "../pages/Result";
+import OfflineScenario from "../pages/OfflineScenario";
 
 const Routes = () => {
   const { token } = useAuth();
@@ -38,6 +39,10 @@ const Routes = () => {
         {
           path: "/result/:id",
           element: <Result></Result>
+        },
+        {
+          path: "/offline/:id",
+          element: <OfflineScenario></OfflineScenario>
         },
         {
           path: "/profile",

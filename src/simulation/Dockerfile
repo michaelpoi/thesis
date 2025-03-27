@@ -14,7 +14,7 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-COPY metadrive-main /app/metadrive-main
+COPY metadrive /app/metadrive-main
 
 
 RUN pip install --upgrade pip

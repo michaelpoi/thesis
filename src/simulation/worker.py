@@ -3,8 +3,10 @@ import base64
 import io
 import json
 import os
-from time import sleep
-from metadrive.envs import MetaDriveEnv
+from MoveManager import MovingExampleEnv
+from metadrive.policy.idm_policy import IDMPolicy
+from metadrive.component.vehicle.vehicle_type import DefaultVehicle
+from MoveManager import MovingExampleManager
 from schemas import Move
 from core.move_converter import MoveConverter
 from PIL import Image
@@ -13,6 +15,8 @@ from utils import get_rabbitmq_url
 import logging
 import requests
 from metadrive.utils.draw_top_down_map import draw_top_down_map
+from subworker import Subworker
+from multiprocessing import Process
 
 
 def get_termination_reason(info):
@@ -37,17 +41,21 @@ class Worker:
         self.connection = None
         self.current_step = 0
 
+    async def send_message(self, queue_name, body):
+        connection = await aio_pika.connect_robust(url=self.rabbitmq_url)
+        async with connection:
+            channel = await connection.channel()
+            await channel.default_exchange.publish(
+                aio_pika.Message(body=body),
+                routing_key=queue_name,
+            )
+
+
     def get_vehicle_config(self):
         return dict(
             show_dest_mark = True,
 
         )
-
-    async def get_connection(self):
-        # # if not self.connection:
-        # self.connection =
-
-        return await aio_pika.connect_robust(url=get_rabbitmq_url())
 
     @property
     def move_queue_name(self):
@@ -60,12 +68,14 @@ class Worker:
     def setup_env(self):
         config = {
             "use_render": False,
-            "traffic_density": 0.1,
+            "traffic_density": 0.,
             "map": self.scenario.map.layout,
             "vehicle_config": self.get_vehicle_config(),
-            "out_of_road_done": False
+            "out_of_road_done": False,
+            "horizon": self.scenario.steps,
+            "truncate_as_terminate": True,
         }
-        self.env = MetaDriveEnv(config=config)
+        self.env = MovingExampleEnv(config=config, avs=self.scenario.vehicles[1:])
         self.env.reset()
 
     def setup_vehicle(self, x, y, v):
@@ -84,51 +94,29 @@ class Worker:
         return base64.b64encode(gif_data).decode('utf-8')
 
 
-
-
-
-
     async def send_frame(self, image_bytes):
-        connection = await self.get_connection()
-        async with connection:
-            channel = await connection.channel()
-
-            message_body = {
-                "scenario_id": self.scenario.id,
-                "status": "ACTIVE",
-                "step": self.current_step,
-                "image_bytes": base64.b64encode(image_bytes).decode("utf-8")  # Convert bytes to base64 string
-            }
-
-            message_data = json.dumps(message_body).encode("utf-8")
-
-            await channel.default_exchange.publish(
-                aio_pika.Message(body=message_data),
-                routing_key=self.results_queue_name,
-            )
+        message_body = {
+            "scenario_id": self.scenario.id,
+            "status": "ACTIVE",
+            "step": self.current_step,
+            "image_bytes": base64.b64encode(image_bytes).decode("utf-8")  # Convert bytes to base64 string
+        }
+        message_data = json.dumps(message_body).encode("utf-8")
+        await self.send_message(self.results_queue_name, message_data)
 
 
 
     async def process_finish(self, info):
-        connection = await self.get_connection()
-        async with connection:
-            channel = await connection.channel()
-
-            message_body = {
-                "scenario_id": self.scenario.id,
-                "status": "FINISHED",
-                "reason": get_termination_reason(info),
-                "gif": self.generate_gif(),
-            }
-
-            message_data = json.dumps(message_body).encode("utf-8")
-
-            await channel.default_exchange.publish(
-                aio_pika.Message(body=message_data),
-                routing_key=self.results_queue_name,
-            )
-            logging.warning(f"Shutting down worker {self.scenario.id}")
-            exit(0)
+        message_body = {
+            "scenario_id": self.scenario.id,
+            "status": "FINISHED",
+            "reason": get_termination_reason(info),
+            "gif": self.generate_gif(),
+        }
+        message_data = json.dumps(message_body).encode("utf-8")
+        await self.send_message(self.results_queue_name, message_data)
+        logging.warning(f"Shutting down worker {self.scenario.id}")
+        exit(0)
 
     async def process_move(self, move: Move):
         move_arr = MoveConverter.convert(move)
@@ -148,7 +136,7 @@ class Worker:
         return True
 
     async def consume_moves(self):
-        connection = await self.get_connection()
+        connection = await aio_pika.connect_robust(url=self.rabbitmq_url)
         async with connection:
             channel = await connection.channel()
             queue = await channel.declare_queue(self.move_queue_name, durable=True)
@@ -177,15 +165,11 @@ class Worker:
             'image': ('file.png', image_bytes, 'image/png'),
         }
 
-        response = requests.post(f"{os.getenv('API_URL')}/maps/{self.scenario.map.id}", files=files)
-
-        print(response.json())
-
-        return
+        requests.post(f"{os.getenv('API_URL')}/maps/{self.scenario.map.id}", files=files)
 
 
     def work(self):
-        logging.warn(f"Starting worker process {self.scenario.id}")
+        logging.warning(f"Starting worker process {self.scenario.id}")
         asyncio.run(self.run())
 
 

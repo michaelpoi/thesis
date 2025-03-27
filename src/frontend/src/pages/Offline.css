@@ -1,0 +1,20 @@
+/*.image-container {*/
+/*  position: relative;*/
+/*  width: 100%;*/
+/*  height: auto;*/
+/*}*/
+
+/*.main-scenario,*/
+/*.preview-scenario {*/
+/*  position: absolute;*/
+/*  top: 0;*/
+/*  left: 0;*/
+/*  width: 100%;*/
+/*  height: auto;*/
+/*  object-fit: cover;*/
+/*}*/
+
+/*.preview-scenario {*/
+/*  opacity: 0.5;  !* Adjust opacity here *!*/
+/*  transition: opacity 0.3s ease-in-out;  !* Optional smooth transition *!*/
+/*}*/

@@ -11,6 +11,7 @@ from database import init_db, deinit_db
 from routers.tasks import router as tasks_router
 from routers.auth import router as auth_router
 from routers.maps import router as maps_router
+from routers.offline_scenarios import router as offline_router
 from queues.images import queue
 from utils import create_admin, create_map
 
@@ -43,6 +44,7 @@ app.add_middleware(
 app.include_router(tasks_router)
 app.include_router(auth_router)
 app.include_router(maps_router)
+app.include_router(offline_router)
 
 async def main():
     config = Config(app=app,host=settings.host, port=settings.port, reload=settings.debug)

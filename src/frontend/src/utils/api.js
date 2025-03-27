@@ -12,6 +12,7 @@ export const fetchWithAuth = (url, options = {}) => {
     })
     .then(response => {
         if (response.status === 401) {
+            localStorage.removeItem('token');
             window.location.href = "/login";  // Redirect to login on unauthorized
             return null;
         }

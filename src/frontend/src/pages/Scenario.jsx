@@ -7,7 +7,7 @@ const Scenario = () => {
   const {task, usedVehicle} = location.state || {};
   const ws = useRef(null); // Use useRef for WebSocket
   const [imageSrc, setImageSrc] = useState(null);
-  const [currentStep, setCurrentStep]= useState(0);
+  const currentStep = useRef(0)
 
 
   const handleKeyDown = (e) => {
@@ -42,21 +42,11 @@ const Scenario = () => {
 
     socket.onmessage = (event) => {
     try {
-      // The message is already a string, parse it directly
-      const data = JSON.parse(event.data);
 
-      // setCurrentStep(data.step); // Update the step state
-
-      // Convert base64 string to Blob
-      const byteCharacters = atob(data.image);
-      const byteNumbers = new Array(byteCharacters.length)
-        .fill(0)
-        .map((_, i) => byteCharacters.charCodeAt(i));
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "image/png" });
-
+      const blob = new Blob([event.data], { type: "image/png" });
       const url = URL.createObjectURL(blob); // Create an object URL
       setImageSrc(url); // Set image source
+      currentStep.current += 1;
     } catch (error) {
       console.error("Error processing WebSocket message:", error);
     }
@@ -67,6 +57,7 @@ const Scenario = () => {
 
     socket.onclose = (event) => {
       console.log(`websocket closed code: ${event.code}`)
+      navigate('/', {replace: true})
       switch (event.code){
         case 1000:
           navigate(`/result/${task.id}/`, {replace: true});
@@ -101,7 +92,7 @@ const Scenario = () => {
         <button onClick={() => sendDirection("RIGHT")}>Right</button>
       </div>
       <div>
-        <h4>Step {currentStep} / {task.steps}</h4>
+        <h4>Step {currentStep.current} / {task.steps}</h4>
         <h4>Messages:</h4>
               {imageSrc ? <img src={imageSrc} alt="WebSocket Image" /> : <p>Waiting for image...</p>}
       </div>
