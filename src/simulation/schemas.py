@@ -24,6 +24,7 @@ class Vehicle(BaseModel):
     init_x: int
     init_y: int
     init_speed: float
+    assigned_user_id: Optional[int]
 
 class Map(BaseModel):
     id: int
@@ -43,6 +44,7 @@ class DiscreteMove(BaseModel):
 
 class OfflineScenarioPreview(BaseModel):
     scenario_id: int
+    vehicle_id: int
     moves: List[DiscreteMove]
 
 

@@ -17,7 +17,7 @@ COPY requirements.txt .
 COPY metadrive /app/metadrive-main
 
 
-RUN pip install --upgrade pip
+RUN pip install --upgrade pip wheel setuptools
 
 RUN cd metadrive-main && \
     pip install -e .

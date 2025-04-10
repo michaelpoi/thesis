@@ -9,4 +9,5 @@ class DiscreteMove(BaseModel):
 
 class OfflineScenarioPreview(BaseModel):
     scenario_id: int
+    vehicle_id: int
     moves: List[DiscreteMove]

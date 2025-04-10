@@ -9,6 +9,7 @@ from schemas.results import Scenario as SScenario, Vehicle as SVehicle
 from database import async_session
 from db.scenario_repository import ScenarioRepository
 from queues.queue import queue
+from db.offline_repository import OfflineScheduler
 
 router = APIRouter(
     prefix="/offline",
@@ -28,14 +29,16 @@ async def init_scenario(scenario_id: int):
 @router.post('/preview')
 async def get_preview(move: OfflineScenarioPreview):
     await queue.send_offline_move(move, is_preview=True)
-    image_bytes = await queue.wait_for_image()
+    gif_bytes = await queue.wait_for_image()
 
-    return Response(content=image_bytes, media_type="image/png")
+    return Response(content=gif_bytes, media_type="image/gif")
 
 
 
 @router.post('/submit')
 async def post_preview(preview: OfflineScenarioPreview):
+    await OfflineScheduler.save_move(preview)
+    return {'global_move': await OfflineScheduler.get_global_move(preview.scenario_id, preview.vehicle_id)}
     await queue.send_offline_move(preview)
     image_bytes = await queue.wait_for_image()
     if not image_bytes:

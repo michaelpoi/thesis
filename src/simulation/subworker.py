@@ -86,6 +86,15 @@ class Subworker:
         await self.send_message(self.results_queue_name, image_bytes)
         logging.warning("Frame sent successfully")
 
+    def generate_gif(self):
+        filename = f"preview_{self.scenario.id}.gif"
+        self.env.top_down_renderer.generate_gif(gif_name=filename)
+
+        with open(filename, "rb") as f:
+            gif_data = f.read()
+
+        return gif_data
+
 
 
 
@@ -95,17 +104,10 @@ class Subworker:
             for s in range(mv.steps):
                 logging.info(f"Step {s}")
                 obj, reward, tm, tr, info = self.env.step(move_arr)
+                self.env.render(mode='topdown', window=False, draw_target_vehicle_trajectory=True,screen_record=True)
 
-
-
-        image = self.env.render(mode='topdown', window=False, draw_target_vehicle_trajectory=True,screen_record=True)
-
-        bytes_io = io.BytesIO()
-        img = Image.fromarray(image)
-        img.save(bytes_io, format="PNG")
-        image_bytes = bytes_io.getvalue()
-
-        await self.send_frame(image_bytes)
+        gif_data = self.generate_gif()
+        await self.send_frame(gif_data)
         self.current_step += 1
         return True
 

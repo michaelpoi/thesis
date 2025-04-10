@@ -15,8 +15,9 @@ from utils import get_rabbitmq_url
 import logging
 import requests
 from metadrive.utils.draw_top_down_map import draw_top_down_map
-from subworker import Subworker
-from multiprocessing import Process
+import numpy as np
+
+from metadrive import MultiAgentMetaDrive
 
 
 def get_termination_reason(info):
@@ -25,21 +26,27 @@ def get_termination_reason(info):
         0: 'arrive_dest',
         1: 'out_of_road',
         2: 'crash_vehicle',
-        3: 'crash_object'
+        3: 'crash_object',
     }
 
     for key, value in tm_reasons.items():
-        if info[value]:
-            return key
+        try:
+            if info[value]:
+                return key
+        except:
+            return -1
 
 
 class Worker:
     def __init__(self, scenario):
         self.rabbitmq_url = get_rabbitmq_url()
         self.scenario = scenario
+        self.avs, self.humans = self.split_vehicles()
+        print(scenario)
         self.env = None
         self.connection = None
         self.current_step = 0
+        self.agent_ids = {}
 
     async def send_message(self, queue_name, body):
         connection = await aio_pika.connect_robust(url=self.rabbitmq_url)
@@ -65,6 +72,18 @@ class Worker:
     def results_queue_name(self):
         return f"images_queue"
 
+    def split_vehicles(self):
+        avs, humans = [], []
+        for vehicle in self.scenario.vehicles:
+            if vehicle.assigned_user_id is None:
+                avs.append(vehicle)
+            else:
+                humans.append(vehicle)
+
+        return avs, humans
+
+
+
     def setup_env(self):
         config = {
             "use_render": False,
@@ -73,15 +92,23 @@ class Worker:
             "vehicle_config": self.get_vehicle_config(),
             "out_of_road_done": False,
             "horizon": self.scenario.steps,
-            "truncate_as_terminate": True,
+            "num_agents": len(self.humans),
+            "truncate_as_terminate": False,
         }
-        self.env = MovingExampleEnv(config=config, avs=self.scenario.vehicles[1:])
+        self.env = MultiAgentMetaDrive(config=config) #, avs=self.avs
         self.env.reset()
 
-    def setup_vehicle(self, x, y, v):
-        ego_vehicle = self.env.agent
-        ego_vehicle.set_position([x, y])
-        ego_vehicle.set_velocity([v, 0])
+        for human, agent_id in zip(self.humans, self.env.agents.keys()):
+            self.agent_ids[human.id] = agent_id
+
+    def setup_vehicle(self):
+        for vehicle in self.humans:
+            agent_id = self.agent_ids[vehicle.id]
+            agent = self.env.engine.agents[agent_id]
+
+            agent.set_position([vehicle.init_x, vehicle.init_y])
+            agent.set_velocity([vehicle.init_speed, 0])
+
 
 
     def generate_gif(self):
@@ -120,11 +147,33 @@ class Worker:
 
     async def process_move(self, move: Move):
         move_arr = MoveConverter.convert(move)
-        obs, reward, tm, tr, info = self.env.step(move_arr)
-        if tm:
+        ego_agent_id = self.agent_ids[move.vehicle_id]
+        step = {}
+        for agent_id in self.agent_ids.values():
+            if agent_id == ego_agent_id:
+                step[agent_id] = move_arr
+
+            else:
+                step[agent_id] = np.array([0,0])
+
+        print(step)
+        print(self.env.agent_manager.active_agents)
+
+
+        obs, reward, tm, tr, info = self.env.step(step)
+        print(info)
+        print(tr)
+        if tm['__all__'] or tr['__all__']:
             await self.process_finish(info)
 
-        image = self.env.render(mode='topdown', window=False, screen_record=True)
+        image = self.env.render(mode='topdown',
+                                window=False,
+                                film_size = (1000, 1000),
+                                screen_size = (1000, 1000),
+                                camera_position=self.env.current_map.get_center_point(),
+                                screen_record=True,
+                                scaling=None,
+                                text={"episode step": self.env.engine.episode_step})
 
         bytes_io = io.BytesIO()
         img = Image.fromarray(image)
@@ -150,7 +199,7 @@ class Worker:
     async def run(self):
         self.setup_env()
         ego_vehicle = self.scenario.vehicles[0]
-        self.setup_vehicle(ego_vehicle.init_x, ego_vehicle.init_y, ego_vehicle.init_speed)
+        self.setup_vehicle()
         await self.consume_moves()
 
     def map_preview(self):

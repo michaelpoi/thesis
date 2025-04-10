@@ -14,6 +14,7 @@ const TaskList = () => {
   const navigate = useNavigate();
   const [maps, setMaps] = useState([]);
   const [selectedMap, setSelectedMap] = useState('');
+  const [userInputEnabled, setUserInputEnabled] = useState(true);
 
 
   useEffect(() => {
@@ -71,6 +72,18 @@ const TaskList = () => {
       prev.map((v, i) => (i === index ? { ...v, [key]: value } : v))
     );
   };
+
+  const handleSetAV = (index, vehicle) => {
+      if (userInputEnabled){
+          handleInputChange(index, 'assigned_user_id', null)
+          setUserInputEnabled(false);
+      }
+      else{
+          handleInputChange(index, 'assigned_user_id', 1)
+          setUserInputEnabled(true);
+      }
+
+  }
 
   return (
       <div>
@@ -148,8 +161,17 @@ const TaskList = () => {
                                   <input
                                     value={vehicle.assigned_user_id}
                                     onChange={(e) => handleInputChange(index, "assigned_user_id", e.target.value)}
+                                    disabled={!userInputEnabled}
                                   />
                                   {userError && <span style={{ color: "red" }}>{userError}</span>}
+                              </label>
+                              <label>
+                                  Is AV?
+                                  <input
+                                    type="checkbox"
+                                    onChange={() => handleSetAV(index, vehicle)}
+                                    checked={!userInputEnabled}
+                                  />
                               </label>
                           </div>
                       ))}
