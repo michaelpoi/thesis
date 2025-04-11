@@ -7,7 +7,13 @@ class DiscreteMove(BaseModel):
     steering: float
     acceleration: float
 
+    class Config:
+        from_attributes = True
+
 class OfflineScenarioPreview(BaseModel):
     scenario_id: int
     vehicle_id: int
     moves: List[DiscreteMove]
+
+    class Config:
+        from_attributes = True

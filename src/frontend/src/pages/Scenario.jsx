@@ -8,6 +8,8 @@ const Scenario = () => {
   const ws = useRef(null); // Use useRef for WebSocket
   const [imageSrc, setImageSrc] = useState(null);
 
+  console.log(usedVehicle)
+
 
   const handleKeyDown = (e) => {
     switch (e.which){
@@ -35,7 +37,7 @@ const Scenario = () => {
 
   useEffect(() => {
     // Create WebSocket connection
-    const socket = new WebSocket(`ws://localhost:8000/tasks/ws/${task.id}/${usedVehicle}/`, [localStorage.getItem('token')]);
+    const socket = new WebSocket(`ws://127.0.0.1/api/tasks/ws/${task.id}/${usedVehicle}/`, [localStorage.getItem('token')]);
 
     ws.current = socket; // Store socket in ref
 

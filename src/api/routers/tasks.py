@@ -102,7 +102,7 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
         while True:
             try:
                 try:
-                    data = await asyncio.wait_for(websocket.receive_text(), 0.03)
+                    data = await asyncio.wait_for(websocket.receive_text(), 0.1)
                 except asyncio.TimeoutError:
                     data = "KEEP_ALIVE"
 
@@ -112,6 +112,7 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                     await websocket.close(code=1008)
 
                 move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=data)
+                print(move)
                 await queue.send_move(move)
                 try:
                     image = Image.open(f"/app/{scenario_db.id}.png")

@@ -3,7 +3,7 @@ import base64
 import io
 import json
 import os
-from MoveManager import MovingExampleEnv
+from core.multi_mixed_env import MultiPlayerEnv
 from metadrive.policy.idm_policy import IDMPolicy
 from metadrive.component.vehicle.vehicle_type import DefaultVehicle
 from MoveManager import MovingExampleManager
@@ -42,7 +42,6 @@ class Worker:
         self.rabbitmq_url = get_rabbitmq_url()
         self.scenario = scenario
         self.avs, self.humans = self.split_vehicles()
-        print(scenario)
         self.env = None
         self.connection = None
         self.current_step = 0
@@ -95,7 +94,7 @@ class Worker:
             "num_agents": len(self.humans),
             "truncate_as_terminate": False,
         }
-        self.env = MultiAgentMetaDrive(config=config) #, avs=self.avs
+        self.env = MultiPlayerEnv(config=config, avs=self.avs) #, avs=self.avs
         self.env.reset()
 
         for human, agent_id in zip(self.humans, self.env.agents.keys()):
@@ -147,6 +146,8 @@ class Worker:
 
     async def process_move(self, move: Move):
         move_arr = MoveConverter.convert(move)
+        print(self.agent_ids)
+        print(move)
         ego_agent_id = self.agent_ids[move.vehicle_id]
         step = {}
         for agent_id in self.agent_ids.values():
@@ -193,12 +194,12 @@ class Worker:
             async for message in queue:
                 async with message.process():
                     move_json = json.loads(message.body)
+                    print(move_json)
                     move = Move(**move_json)
                     await self.process_move(move)
 
     async def run(self):
         self.setup_env()
-        ego_vehicle = self.scenario.vehicles[0]
         self.setup_vehicle()
         await self.consume_moves()
 

@@ -3,8 +3,9 @@ import base64
 import io
 import json
 from multiprocessing import Process, set_start_method
+from typing import List
 
-from MoveManager import MovingExampleEnv
+from core.multi_mixed_env import MultiPlayerEnv
 from metadrive.policy.idm_policy import IDMPolicy
 from metadrive.component.vehicle.vehicle_type import DefaultVehicle
 from schemas import OfflineScenarioPreview
@@ -38,9 +39,11 @@ class OfflineWorker:
     def __init__(self, scenario):
         self.rabbitmq_url = get_rabbitmq_url()
         self.scenario = scenario
+        self.avs, self.humans = self.split_vehicles()
         self.env = None
         self.connection = None
         self.current_step = 0
+        self.agent_ids = {}
 
     async def send_message(self, queue_name, body):
         connection = await aio_pika.connect_robust(url=self.rabbitmq_url)
@@ -50,6 +53,16 @@ class OfflineWorker:
                 aio_pika.Message(body=body),
                 routing_key=queue_name,
             )
+
+    def split_vehicles(self):
+        avs, humans = [], []
+        for vehicle in self.scenario.vehicles:
+            if vehicle.assigned_user_id is None:
+                avs.append(vehicle)
+            else:
+                humans.append(vehicle)
+
+        return avs, humans
 
 
     def get_vehicle_config(self):
@@ -74,15 +87,22 @@ class OfflineWorker:
             "vehicle_config": self.get_vehicle_config(),
             "out_of_road_done": False,
             "horizon": self.scenario.steps,
-            "truncate_as_terminate": True,
+            "num_agents": len(self.humans),
+            "truncate_as_terminate": False,
         }
-        self.env = MovingExampleEnv(config=config, avs=self.scenario.vehicles[1:])
+        self.env = MultiPlayerEnv(config=config, avs=self.scenario.vehicles[1:])
         self.env.reset()
 
-    def setup_vehicle(self, x, y, v):
-        ego_vehicle = self.env.agent
-        ego_vehicle.set_position([x, y])
-        ego_vehicle.set_velocity([v, 0])
+        for human, agent_id in zip(self.humans, self.env.agents.keys()):
+            self.agent_ids[human.id] = agent_id
+
+    def setup_vehicle(self):
+        for vehicle in self.humans:
+            agent_id = self.agent_ids[vehicle.id]
+            agent = self.env.engine.agents[agent_id]
+
+            agent.set_position([vehicle.init_x, vehicle.init_y])
+            agent.set_velocity([vehicle.init_speed, 0])
 
 
     def generate_gif(self):
@@ -99,6 +119,22 @@ class OfflineWorker:
         await self.send_message(self.results_queue_name, image_bytes)
         logging.warning("Frame sent successfully")
 
+    def to_flat_view(self, moves: List[OfflineScenarioPreview]):
+        flat = {}
+
+        for move in moves:
+            agent_id = self.agent_ids[move.vehicle_id]
+            flat[agent_id] = {}
+            curr = 0
+
+            for dsm in move.moves:
+                for step in range(dsm.steps):
+                    flat[agent_id][curr + step] = [dsm.steering, dsm.acceleration]
+
+                curr += dsm.steps
+
+
+        return flat
 
 
     async def process_finish(self, info):
@@ -113,17 +149,34 @@ class OfflineWorker:
         logging.warning(f"Shutting down worker {self.scenario.id}")
         exit(0)
 
-    async def process_move(self, move: OfflineScenarioPreview):
-        for mv in move.moves:
-            move_arr = [mv.steering, mv.acceleration]
-            for s in range(mv.steps):
-                logging.info(f"Step {s}")
-                obj, reward, tm, tr, info = self.env.step(move_arr)
+    async def process_move(self, moves: List[OfflineScenarioPreview], for_steps:int=None):
+        flat = self.to_flat_view(moves)
+        print(flat)
+        print(self.env.agents)
+        for step in range(for_steps):
+            move = {}
+            for agent_id in self.agent_ids.values():
+                move[agent_id] = flat[agent_id][step]
+
+            obj, reward, tm, tr, info = self.env.step(move)
+
+        # for mv in move.moves:
+        #     move_arr = [mv.steering, mv.acceleration]
+        #     for s in range(mv.steps):
+        #         logging.info(f"Step {s}")
+        #         obj, reward, tm, tr, info = self.env.step(move_arr)
 
         # if tm:
         #     await self.process_finish(info)
 
-        image = self.env.render(mode='topdown', window=False, screen_record=True)
+        image = self.env.render(mode='topdown',
+                                window=False,
+                                film_size=(1000, 1000),
+                                screen_size=(1000, 1000),
+                                camera_position=self.env.current_map.get_center_point(),
+                                screen_record=True,
+                                scaling=None,
+                                text={"episode step": self.env.engine.episode_step})
 
         bytes_io = io.BytesIO()
         img = Image.fromarray(image)
@@ -150,18 +203,18 @@ class OfflineWorker:
             async for message in queue:
                 async with message.process():
                     move_json = json.loads(message.body)
-                    move = OfflineScenarioPreview(**move_json)
-
                     is_preview = message.headers.get("mtype") == "preview"
                     if is_preview:
+                        move = OfflineScenarioPreview(**move_json)
                         await self.spawn_preview_worker(move)
                     else:
-                        await self.process_move(move)
+                        steps = move_json["steps"]
+                        moves = [OfflineScenarioPreview(**move) for move in move_json["moves"]]
+                        await self.process_move(moves, steps)
 
     async def run(self):
         self.setup_env()
-        ego_vehicle = self.scenario.vehicles[0]
-        self.setup_vehicle(ego_vehicle.init_x, ego_vehicle.init_y, ego_vehicle.init_speed)
+        self.setup_vehicle()
         await self.consume_moves()
 
 

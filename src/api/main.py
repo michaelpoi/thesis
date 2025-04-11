@@ -24,13 +24,20 @@ async def lifespan(app: FastAPI):
     await deinit_db()
 
 os.makedirs(settings.static_dir, exist_ok=True)
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="My API",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
 app.mount("/static", StaticFiles(directory=settings.static_folder), name="static")
 
 origins = [
     "http://localhost:3000",  # React app on localhost
     "http://127.0.0.1:3000",  # React app alternative
     "http://0.0.0.0:3000",  # Deployed frontend app
+    "http://127.0.0.1",
 ]
 
 app.add_middleware(
@@ -41,10 +48,10 @@ app.add_middleware(
     allow_headers=["*"],  # Allowed HTTP headers
 )
 
-app.include_router(tasks_router)
-app.include_router(auth_router)
-app.include_router(maps_router)
-app.include_router(offline_router)
+app.include_router(tasks_router, prefix='/api')
+app.include_router(auth_router, prefix='/api')
+app.include_router(maps_router, prefix='/api')
+app.include_router(offline_router, prefix='/api')
 
 async def main():
     config = Config(app=app,host=settings.host, port=settings.port, reload=settings.debug)

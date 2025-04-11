@@ -14,7 +14,6 @@ const TaskList = () => {
   const navigate = useNavigate();
   const [maps, setMaps] = useState([]);
   const [selectedMap, setSelectedMap] = useState('');
-  const [userInputEnabled, setUserInputEnabled] = useState(true);
 
 
   useEffect(() => {
@@ -29,13 +28,13 @@ const TaskList = () => {
 
 
   useEffect(() => {
-    fetch("http://localhost:8000/tasks/")
+    fetch(`${process.env.REACT_APP_API_URL}/tasks/`)
       .then((res) => res.json())
       .then((data) => setTasks(data));
   }, []);
 
   const createTask = async () => {
-    const res = await fetch("http://localhost:8000/tasks/", {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/tasks/`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem('token')}` },
       body: JSON.stringify({ steps: newScenarioSteps, vehicles: newScenarioVehicles, map:selectedMap }),
@@ -74,13 +73,11 @@ const TaskList = () => {
   };
 
   const handleSetAV = (index, vehicle) => {
-      if (userInputEnabled){
-          handleInputChange(index, 'assigned_user_id', null)
-          setUserInputEnabled(false);
+      if (vehicle.assigned_user_id){
+          handleInputChange(index, 'assigned_user_id', null);
       }
       else{
           handleInputChange(index, 'assigned_user_id', 1)
-          setUserInputEnabled(true);
       }
 
   }
@@ -161,7 +158,7 @@ const TaskList = () => {
                                   <input
                                     value={vehicle.assigned_user_id}
                                     onChange={(e) => handleInputChange(index, "assigned_user_id", e.target.value)}
-                                    disabled={!userInputEnabled}
+                                    disabled={!vehicle.assigned_user_id}
                                   />
                                   {userError && <span style={{ color: "red" }}>{userError}</span>}
                               </label>
@@ -170,7 +167,7 @@ const TaskList = () => {
                                   <input
                                     type="checkbox"
                                     onChange={() => handleSetAV(index, vehicle)}
-                                    checked={!userInputEnabled}
+                                    checked={!vehicle.assigned_user_id}
                                   />
                               </label>
                           </div>

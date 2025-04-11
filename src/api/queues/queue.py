@@ -34,8 +34,18 @@ class Queue:
         await self.send_message(self.get_queue_name(move.scenario_id),
                                 move_json)
 
+    async def send_offline_sequence(self, moves, scenario_id):
+        move_json = json.dumps(moves)
+        headers = {"mtype": "main"}
+        await self.send_message(self.get_offline_queue_name(scenario_id), move_json,
+                                headers=headers)
+
+
     async def send_offline_move(self, move: OfflineScenarioPreview, is_preview=False):
-        move_json = json.dumps(move.model_dump())
+        if is_preview:
+            move_json = json.dumps(move.model_dump())
+        else:
+            move_json = json.dumps(move)
         headers = {"mtype": "preview"} if is_preview else {"mtype": "main"}
         await self.send_message(self.get_offline_queue_name(move.scenario_id), move_json,
                                 headers=headers)

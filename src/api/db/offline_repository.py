@@ -23,7 +23,7 @@ class OfflineScheduler:
 
                 await session.commit()
                 sequence_lengths = [moveseq.total_steps() for moveseq in global_move]
-                sequence_jsons = [moveseq.model_dump() for moveseq in global_move]
+                sequence_jsons = [OfflineScenarioPreview.from_orm(moveseq).model_dump() for moveseq in global_move]
 
                 min_length = min(sequence_lengths)
 
@@ -32,6 +32,7 @@ class OfflineScheduler:
                     'steps': min_length,
                     'moves': sequence_jsons,
                 }
+
                 return multiplayer_sequence
             return None
 

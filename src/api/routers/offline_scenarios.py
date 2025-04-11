@@ -38,8 +38,10 @@ async def get_preview(move: OfflineScenarioPreview):
 @router.post('/submit')
 async def post_preview(preview: OfflineScenarioPreview):
     await OfflineScheduler.save_move(preview)
-    return {'global_move': await OfflineScheduler.get_global_move(preview.scenario_id, preview.vehicle_id)}
-    await queue.send_offline_move(preview)
+    collected_move =  await OfflineScheduler.get_global_move(preview.scenario_id, preview.vehicle_id)
+    print(collected_move)
+    if collected_move:
+        await queue.send_offline_sequence(collected_move, preview.scenario_id)
     image_bytes = await queue.wait_for_image()
     if not image_bytes:
         return {'ok': False}

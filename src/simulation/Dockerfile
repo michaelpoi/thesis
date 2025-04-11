@@ -22,6 +22,8 @@ RUN pip install --upgrade pip wheel setuptools
 RUN cd metadrive-main && \
     pip install -e .
 
+RUN python -m metadrive.pull_asset
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
