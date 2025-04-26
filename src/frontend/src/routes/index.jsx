@@ -41,7 +41,7 @@ const Routes = () => {
           element: <Result></Result>
         },
         {
-          path: "/offline/:id",
+          path: "/offline/:id/:vehicle_id",
           element: <OfflineScenario></OfflineScenario>
         },
         {

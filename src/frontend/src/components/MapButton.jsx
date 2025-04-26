@@ -1,7 +1,20 @@
 import "./MapButton.css"
 
 const MapButton = ({block, updateCode}) => {
-    const imsrc = `/${block}.png`
+
+    let imsrc;
+
+    if (block === 'R'){
+        imsrc = `/r1.png`
+    }
+    else{
+        if (block === 'Y'){
+            imsrc = '/y1.png'
+        }
+        else{
+            imsrc = `/${block}.png`
+        }
+    }
     
     return (
         <div className="map_button">

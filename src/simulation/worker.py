@@ -18,6 +18,7 @@ from metadrive.utils.draw_top_down_map import draw_top_down_map
 import numpy as np
 
 from metadrive import MultiAgentMetaDrive
+from metadrive.envs import MetaDriveEnv
 
 
 def get_termination_reason(info):
@@ -83,7 +84,7 @@ class Worker:
 
 
 
-    def setup_env(self):
+    def setup_env(self, is_map_preview=False):
         config = {
             "use_render": False,
             "traffic_density": 0.,
@@ -94,7 +95,11 @@ class Worker:
             "num_agents": len(self.humans),
             "truncate_as_terminate": False,
         }
-        self.env = MultiPlayerEnv(config=config, avs=self.avs) #, avs=self.avs
+        if not is_map_preview:
+            self.env = MultiPlayerEnv(config=config, avs=self.avs)
+        else:
+            config.pop('num_agents')
+            self.env = MetaDriveEnv(config=config)
         self.env.reset()
 
         for human, agent_id in zip(self.humans, self.env.agents.keys()):
@@ -146,7 +151,6 @@ class Worker:
 
     async def process_move(self, move: Move):
         move_arr = MoveConverter.convert(move)
-        print(self.agent_ids)
         print(move)
         ego_agent_id = self.agent_ids[move.vehicle_id]
         step = {}
@@ -174,7 +178,8 @@ class Worker:
                                 camera_position=self.env.current_map.get_center_point(),
                                 screen_record=True,
                                 scaling=None,
-                                text={"episode step": self.env.engine.episode_step})
+                                text={"episode step": self.env.engine.episode_step,
+                                      "move": move.direction})
 
         bytes_io = io.BytesIO()
         img = Image.fromarray(image)
@@ -204,7 +209,7 @@ class Worker:
         await self.consume_moves()
 
     def map_preview(self):
-        self.setup_env()
+        self.setup_env(is_map_preview=True)
         m = draw_top_down_map(self.env.current_map)
         bytes_io = io.BytesIO()
         img = Image.fromarray(m)
@@ -215,7 +220,10 @@ class Worker:
             'image': ('file.png', image_bytes, 'image/png'),
         }
 
-        requests.post(f"{os.getenv('API_URL')}/maps/{self.scenario.map.id}", files=files)
+        res = requests.post(f"{os.getenv('API_URL')}/maps/{self.scenario.map.id}", files=files)
+        print(res.status_code)
+
+        exit(0)
 
 
     def work(self):

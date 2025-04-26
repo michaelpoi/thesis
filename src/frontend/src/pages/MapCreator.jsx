@@ -29,7 +29,7 @@ const MapCreator = () =>{
         setCode(prev => (prev + block))
     }
     const handleAddMap = () => {
-        fetchWithAuth(`http://localhost:8000/maps/`,
+        fetchWithAuth(`${process.env.REACT_APP_API_URL}/maps/`,
             {
                 method: "POST",
                 body: JSON.stringify({layout: code, label: label})

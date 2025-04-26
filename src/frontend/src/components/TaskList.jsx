@@ -63,7 +63,7 @@ const TaskList = () => {
   }
 
   const onOffline = (task) => {
-      navigate(`offline/${task.id}`)
+      navigate(`offline/${task.id}/${usedVehicle}`)
   }
 
   const handleInputChange = (index, key, value) => {

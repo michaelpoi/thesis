@@ -30,7 +30,7 @@ def get_termination_reason(info):
 
 
 class Subworker:
-    def __init__(self, scenario, curr_x, curr_y, curr_v):
+    def __init__(self, scenario, curr_x, curr_y, curr_v, curr_h):
         self.rabbitmq_url = get_rabbitmq_url()
         self.scenario = scenario
         self.env = None
@@ -39,6 +39,8 @@ class Subworker:
         self.curr_x = curr_x
         self.curr_y = curr_y
         self.curr_v = curr_v
+        self.curr_h = curr_h
+
 
     async def send_message(self, queue_name, body):
         connection = await aio_pika.connect_robust(url=self.rabbitmq_url)
@@ -59,7 +61,7 @@ class Subworker:
 
     @property
     def results_queue_name(self):
-        return f"offline_queue"
+        return f"offline_queue_{self.scenario.id}_pr"
 
     def setup_env(self):
         config = {
@@ -74,10 +76,11 @@ class Subworker:
         self.env = MetaDriveEnv(config=config)
         self.env.reset()
 
-    def setup_vehicle(self, x, y, v):
+    def setup_vehicle(self, x, y, v, h):
         ego_vehicle = self.env.agent
         ego_vehicle.set_position([x, y])
         ego_vehicle.set_velocity([v, 0])
+        ego_vehicle.set_heading_theta(h)
 
 
 
@@ -114,7 +117,7 @@ class Subworker:
 
     async def run(self, move):
         self.setup_env()
-        self.setup_vehicle(self.curr_x, self.curr_y, self.curr_v)
+        self.setup_vehicle(self.curr_x, self.curr_y, self.curr_v, self.curr_h)
         return await self.process_move(move)
 
 

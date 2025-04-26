@@ -169,7 +169,7 @@ select:focus {
   left: 50%;
   transform: translate(-50%, -50%);
   width: 400px;
-  max-height: 80vh; /* Limits height to prevent overflow */
+  max-height: 120vh; /* Limits height to prevent overflow */
   background: white;
   padding: 20px;
   border-radius: 10px;

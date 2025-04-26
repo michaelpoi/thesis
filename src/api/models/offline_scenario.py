@@ -1,5 +1,5 @@
 from models.base import Base
-from sqlalchemy import Column, Integer, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, ForeignKey, Boolean, String
 from sqlalchemy.orm import relationship
 
 
@@ -29,5 +29,14 @@ class OfflineScenarioMove(Base):
 
     sequence_id = Column(Integer, ForeignKey('offline_scenario_sequence.id'))
     sequence = relationship('OfflineScenarioMoveSequence', back_populates='moves')
+
+
+class ExecutedStep(Base):
+    __tablename__ = 'executed_step'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scenario_id = Column(Integer, ForeignKey('scenario.id'))
+    scenario = relationship('Scenario')
+    step_num = Column(Integer)
+    image_url = Column(String, nullable=True)
 
 

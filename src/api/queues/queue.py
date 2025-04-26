@@ -54,19 +54,23 @@ class Queue:
         scenario_json = json.dumps(scenario.model_dump())
         await self.send_message("init_queue", scenario_json, {"mtype": mtype} )
 
-    async def wait_for_image(self):
+    async def wait_for_image(self, scenario_id=None, pr=False):
         connection = await aio_pika.connect_robust(self.rabbitmq_url)
+        queue_name = f'offline_queue_{scenario_id}' if scenario_id else 'offline_queue'
+        queue_name = queue_name if not pr else f"{queue_name}_pr"
         async with connection:
             channel = await connection.channel()
 
             # ✅ Correct queue name
-            queue = await channel.declare_queue('offline_queue')
+            queue = await channel.declare_queue(queue_name)
 
-            try:
-                return await asyncio.wait_for(self._consume_image(queue), timeout=10)  # ⏳ 10 sec timeout
-            except asyncio.TimeoutError:
-                print("⏳ Timeout waiting for image.")
-                return None
+            # try:
+            #     return await asyncio.wait_for(self._consume_image(queue), timeout=10)  # ⏳ 10 sec timeout
+            # except asyncio.TimeoutError:
+            #     print("⏳ Timeout waiting for image.")
+            #     return None
+
+            return await self._consume_image(queue)
 
     async def _consume_image(self, queue):
         async for message in queue:

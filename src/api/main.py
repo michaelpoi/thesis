@@ -31,7 +31,7 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
-app.mount("/static", StaticFiles(directory=settings.static_folder), name="static")
+app.mount("/api/static", StaticFiles(directory=settings.static_folder), name="static")
 
 origins = [
     "http://localhost:3000",  # React app on localhost

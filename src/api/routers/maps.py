@@ -56,7 +56,7 @@ async def queue_map_preview(map_db: Map):
                                 status=ScenarioStatus.FINISHED
                                 )
 
-    await queue.send_init(sample_scenario)
+    await queue.send_init(sample_scenario, "map")
 
 
 

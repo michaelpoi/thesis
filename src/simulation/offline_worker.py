@@ -77,7 +77,7 @@ class OfflineWorker:
 
     @property
     def results_queue_name(self):
-        return f"offline_queue"
+        return f"offline_queue_{self.scenario.id}"
 
     def setup_env(self):
         config = {
@@ -90,7 +90,7 @@ class OfflineWorker:
             "num_agents": len(self.humans),
             "truncate_as_terminate": False,
         }
-        self.env = MultiPlayerEnv(config=config, avs=self.scenario.vehicles[1:])
+        self.env = MultiPlayerEnv(config=config, avs=self.avs)
         self.env.reset()
 
         for human, agent_id in zip(self.humans, self.env.agents.keys()):
@@ -188,9 +188,12 @@ class OfflineWorker:
         return True
 
     async def spawn_preview_worker(self, move):
-        x, y = self.env.vehicle.position
-        speed = self.env.vehicle.speed
-        sub_worker = Subworker(self.scenario, x,y, speed)
+        agent_id = self.agent_ids[move.vehicle_id]
+        agent = self.env.engine.agents[agent_id]
+        x, y = agent.position
+        speed = agent.speed
+        heading = agent.heading_theta
+        sub_worker = Subworker(self.scenario, x,y, speed, heading)
         process = Process(target=sub_worker.work, args=(move,))
         process.start()
 

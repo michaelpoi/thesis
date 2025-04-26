@@ -45,6 +45,9 @@ class Manager:
                 return
             worker_class = Worker
             self.workers.add(scenario.id)
+        elif mtype == 'map':
+            await self.handle_preview(scenario)
+            return
         else:
             if scenario.id in self.offline_workers:
                 return

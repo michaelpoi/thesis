@@ -37,8 +37,6 @@ services:
       context: ./frontend
       dockerfile: ./Dockerfile
 
-    volumes:
-      - frontend_build:/app/build  # Export build to a shared volume
 
 
 
@@ -64,7 +62,7 @@ services:
       - api
     environment:
       - rq_host=rabbitmq
-      - API_URL=http://127.0.0.1/api
+      - API_URL=http://api:8000/api
 
 
   nginx:
@@ -74,13 +72,10 @@ services:
       - "80:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - frontend_build:/usr/share/nginx/html:ro  # Serve build output
     depends_on:
       - frontend
       - api
 
 
-volumes:
-  frontend_build:
 
 

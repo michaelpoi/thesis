@@ -11,7 +11,7 @@ const OfflineScenario = () => {
 
     const [newMove, setNewMove] = useState({ steps: "", steering: "", acceleration: "" });
 
-    const { id } = useParams();
+    const { id, vehicle_id } = useParams();
 
     useEffect(() => {
         fetch(`${process.env.REACT_APP_API_URL}/offline/init/${id}/`, {
@@ -44,6 +44,7 @@ const OfflineScenario = () => {
             method: "POST",
             body: JSON.stringify({
                 scenario_id: Number(id),
+                vehicle_id: Number(vehicle_id),
                 moves: moves
             }),
             headers: { "Content-Type": "application/json" },
@@ -60,6 +61,7 @@ const OfflineScenario = () => {
             method: "POST",
             body: JSON.stringify({
                 scenario_id: Number(id),
+                vehicle_id: Number(vehicle_id),
                 moves: moves
             }),
             headers: { "Content-Type": "application/json" },
@@ -83,14 +85,22 @@ const OfflineScenario = () => {
             <button onClick={handlePreview}>Preview</button>
             <button onClick={handleMove}>Submit</button>
             <h2>Moves List</h2>
-            <ul>
+            <div className="moves-list">
                 {moves.map((move, index) => (
-                    <li key={index}>
-                        <strong>Move {index + 1}:</strong> Steps - {move.steps},
-                        Steering - {move.steering}, Acceleration - {move.acceleration}
-                    </li>
+                    <div key={index} className="move-card">
+                        <p><strong>Move {index + 1}</strong></p>
+                        <p>Steps: {move.steps}</p>
+                        <p>Steering: {move.steering}</p>
+                        <p>Acceleration: {move.acceleration}</p>
+                        <button onClick={() => {
+                            const newMoves = moves.filter((_, i) => i !== index);
+                            setMoves(newMoves);
+                        }}>
+                            Remove
+                        </button>
+                    </div>
                 ))}
-            </ul>
+            </div>
 
             <h3>Add New Move</h3>
             <form onSubmit={handleSubmit}>
@@ -102,16 +112,24 @@ const OfflineScenario = () => {
                     onChange={handleChange}
                     required
                 />
+                <span>Steering: {newMove.steering}</span>
                 <input
-                    type="number"
+                    type="range"
+                     min={-1}
+                    max={1}
+                    step={0.1}
                     name="steering"
                     placeholder="Steering"
                     value={newMove.steering}
                     onChange={handleChange}
                     required
                 />
+                <span>Acceleration: {newMove.acceleration}</span>
                 <input
-                    type="number"
+                    type="range"
+                    min={-1}
+                    max={1}
+                    step={0.1}
                     name="acceleration"
                     placeholder="Acceleration"
                     value={newMove.acceleration}
