@@ -11,6 +11,7 @@ from metadrive.component.vehicle.vehicle_type import DefaultVehicle
 from schemas import OfflineScenarioPreview
 from PIL import Image
 import aio_pika
+from logger import Logger
 
 from subworker import Subworker
 from utils import get_rabbitmq_url
@@ -30,9 +31,15 @@ def get_termination_reason(info):
         3: 'crash_object'
     }
 
+
     for key, value in tm_reasons.items():
-        if info[value]:
-            return key
+        try:
+            if info[value]:
+                return key
+        except:
+            pass
+
+    return -1
 
 
 class OfflineWorker:
@@ -44,13 +51,15 @@ class OfflineWorker:
         self.connection = None
         self.current_step = 0
         self.agent_ids = {}
+        self.logger = Logger(self.scenario.id, prefix='offline')
 
-    async def send_message(self, queue_name, body):
+    async def send_message(self, queue_name, body, mtype=None):
         connection = await aio_pika.connect_robust(url=self.rabbitmq_url)
+        headers = {'mtype': mtype} if mtype else {'mtype': 'sim_frame'}
         async with connection:
             channel = await connection.channel()
             await channel.default_exchange.publish(
-                aio_pika.Message(body=body),
+                aio_pika.Message(body=body, headers=headers),
                 routing_key=queue_name,
             )
 
@@ -69,6 +78,25 @@ class OfflineWorker:
         return dict(
             show_dest_mark = True,
 
+        )
+
+    def generate_log_entry(self, info, tm, tr):
+
+        agent_states = {
+            agent_id: {
+                "position": self.env.engine.agents[agent_id].position.tolist(),
+                "velocity": self.env.engine.agents[agent_id].velocity.tolist()
+            }
+            for agent_id in self.env.engine.agents
+        }
+
+        self.logger.add_entry(
+            step_num=self.current_step,
+            move_direction='N/A',
+            agent_states=agent_states,
+            termination=tm,
+            truncation=tr,
+            info=info
         )
 
     @property
@@ -138,6 +166,7 @@ class OfflineWorker:
 
 
     async def process_finish(self, info):
+        self.logger.save()
         message_body = {
             "scenario_id": self.scenario.id,
             "status": "FINISHED",
@@ -145,7 +174,7 @@ class OfflineWorker:
             "gif": self.generate_gif(),
         }
         message_data = json.dumps(message_body).encode("utf-8")
-        await self.send_message(self.results_queue_name, message_data)
+        await self.send_message(self.results_queue_name, message_data, 'finish')
         logging.warning(f"Shutting down worker {self.scenario.id}")
         exit(0)
 
@@ -160,14 +189,28 @@ class OfflineWorker:
 
             obj, reward, tm, tr, info = self.env.step(move)
 
-        # for mv in move.moves:
-        #     move_arr = [mv.steering, mv.acceleration]
-        #     for s in range(mv.steps):
-        #         logging.info(f"Step {s}")
-        #         obj, reward, tm, tr, info = self.env.step(move_arr)
+            self.generate_log_entry(info, tm, tr)
 
-        # if tm:
-        #     await self.process_finish(info)
+            logging.warning(tm)
+            logging.warning(tr)
+
+            if tm['__all__'] or tr['__all__'] or tm['agent0'] or tr['agent0']:
+                return await self.process_finish(info)
+
+
+
+            if step % 10 == 0:
+                logging.warning(f'generated frame {step}')
+                self.env.render(mode='topdown',
+                                        window=False,
+                                        film_size=(1000, 1000),
+                                        screen_size=(1000, 1000),
+                                        camera_position=self.env.current_map.get_center_point(),
+                                        screen_record=True,
+                                        scaling=None,
+                                        text={"episode step": self.env.engine.episode_step,
+                                              "speed m/s": round(self.env.engine.agents['agent0'].speed, 2)})
+
 
         image = self.env.render(mode='topdown',
                                 window=False,
@@ -176,7 +219,8 @@ class OfflineWorker:
                                 camera_position=self.env.current_map.get_center_point(),
                                 screen_record=True,
                                 scaling=None,
-                                text={"episode step": self.env.engine.episode_step})
+                                text={"episode step": self.env.engine.episode_step,
+                                      "speed m/s":  round(self.env.engine.agents['agent0'].speed, 2)})
 
         bytes_io = io.BytesIO()
         img = Image.fromarray(image)

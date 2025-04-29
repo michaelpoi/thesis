@@ -1,5 +1,9 @@
 import asyncio
+import base64
+import io
 import json
+import os
+from PIL import Image
 
 from schemas.results import Move, Scenario
 from settings import settings
@@ -72,9 +76,39 @@ class Queue:
 
             return await self._consume_image(queue)
 
+    def split_gif(self, scenario_id, gif_bytes):
+        frame_path = settings.static_dir / "offline_gifs"
+
+
+        if not frame_path.exists():
+            frame_path.mkdir(parents=True, exist_ok=True)
+
+        decoded_bytes = base64.b64decode(gif_bytes)
+
+        gif = Image.open(io.BytesIO(decoded_bytes))
+
+        frame = 0
+
+        try:
+            while True:
+                # Save the current frame
+                gif.save(frame_path / f"frame_{scenario_id}_{frame}.png")
+                frame += 1
+                # Move to next frame
+                gif.seek(frame)
+        except EOFError:
+            pass  # End of frames
+
+
     async def _consume_image(self, queue):
         async for message in queue:
             async with message.process():
+                mtype = message.headers.get("mtype", None)
+                if mtype == 'finish':
+                    message_body = json.loads(message.body.decode("utf-8"))
+                    print(f"Body received: {message_body}")
+                    self.split_gif(message_body['scenario_id'], message_body['gif'])
+                    return False
                 return message.body
 
 

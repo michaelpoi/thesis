@@ -1,5 +1,4 @@
 import json
-from multiprocessing.pool import worker
 
 from worker import Worker
 import aio_pika

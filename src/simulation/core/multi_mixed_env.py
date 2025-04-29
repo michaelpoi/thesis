@@ -1,5 +1,5 @@
 from metadrive.policy.idm_policy import IDMPolicy
-from metadrive import MultiAgentMetaDrive
+from metadrive.envs.marl_envs import MultiAgentMetaDrive
 from metadrive.manager import BaseManager
 from metadrive.component.vehicle.vehicle_type import DefaultVehicle
 
@@ -20,6 +20,7 @@ class MovingExampleManager(BaseManager):
                                     vehicle_config=dict(),
                                     position=(av.init_x, av.init_y),
                                     heading=0)
+            obj.set_velocity([av.init_speed, 0])
             self.add_policy(obj.id, IDMPolicy, obj, self.generate_seed())
 
     def after_step(self):

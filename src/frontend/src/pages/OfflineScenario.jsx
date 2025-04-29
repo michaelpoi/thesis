@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import './Offline.css';
 
 const OfflineScenario = () => {
@@ -10,6 +10,7 @@ const OfflineScenario = () => {
     ]);
 
     const [newMove, setNewMove] = useState({ steps: "", steering: "", acceleration: "" });
+    const navigate = useNavigate()
 
     const { id, vehicle_id } = useParams();
 
@@ -27,13 +28,15 @@ const OfflineScenario = () => {
         e.preventDefault();
         setMoves([...moves, {
             steps: Number(newMove.steps),
-            steering: Number(newMove.steering),
+            steering: Number(-newMove.steering),
             acceleration: Number(newMove.acceleration)
         }]);
         setNewMove({ steps: "", steering: "", acceleration: "" });
     };
 
     const handlePreview = async () =>{
+
+        setPreviewImgSrc('/loading.gif')
         const body = JSON.stringify({
                 scenario_id: Number(id),
                 moves: moves
@@ -57,6 +60,8 @@ const OfflineScenario = () => {
 
     const handleMove = async () =>{
 
+        setScenarioImgSrc('/loading.gif')
+
         const response = await fetch(`${process.env.REACT_APP_API_URL}/offline/submit/`, {
             method: "POST",
             body: JSON.stringify({
@@ -66,6 +71,10 @@ const OfflineScenario = () => {
             }),
             headers: { "Content-Type": "application/json" },
         });
+
+        if (response.status === 405){
+            navigate(`/offline_result/${id}/`, {replace: true});
+        }
 
         const blob = await response.blob();
         const imageUrl = URL.createObjectURL(blob);
@@ -112,30 +121,46 @@ const OfflineScenario = () => {
                     onChange={handleChange}
                     required
                 />
-                <span>Steering: {newMove.steering}</span>
-                <input
-                    type="range"
-                     min={-1}
-                    max={1}
-                    step={0.1}
-                    name="steering"
-                    placeholder="Steering"
-                    value={newMove.steering}
-                    onChange={handleChange}
-                    required
-                />
-                <span>Acceleration: {newMove.acceleration}</span>
-                <input
-                    type="range"
-                    min={-1}
-                    max={1}
-                    step={0.1}
-                    name="acceleration"
-                    placeholder="Acceleration"
-                    value={newMove.acceleration}
-                    onChange={handleChange}
-                    required
-                />
+                <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>LEFT</span>
+                        <span>Steering: {-newMove.steering}</span>
+                        <span>RIGHT</span>
+                    </div>
+                    <input
+                        type="range"
+                        min={-1}
+                        max={1}
+                        step={0.1}
+                        name="steering"
+                        placeholder="Steering"
+                        value={newMove.steering}
+                        onChange={handleChange}
+                        required
+                        style={{ width: '100%' }}
+                    />
+                </div>
+
+                <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>BRAKE</span>
+                        <span>Acceleration: {newMove.acceleration}</span>
+                        <span>ACCELERATE</span>
+                    </div>
+                    <input
+                        type="range"
+                        min={-1}
+                        max={1}
+                        step={0.1}
+                        name="acceleration"
+                        placeholder="Acceleration"
+                        value={newMove.acceleration}
+                        onChange={handleChange}
+                        required
+                        style={{ width: '100%' }}
+                    />
+                </div>
+
                 <button type="submit">Add Move</button>
             </form>
         </div>

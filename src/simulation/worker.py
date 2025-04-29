@@ -3,10 +3,8 @@ import base64
 import io
 import json
 import os
-from core.multi_mixed_env import MultiPlayerEnv
-from metadrive.policy.idm_policy import IDMPolicy
-from metadrive.component.vehicle.vehicle_type import DefaultVehicle
-from MoveManager import MovingExampleManager
+
+from logger import Logger
 from schemas import Move
 from core.move_converter import MoveConverter
 from PIL import Image
@@ -17,7 +15,6 @@ import requests
 from metadrive.utils.draw_top_down_map import draw_top_down_map
 import numpy as np
 
-from metadrive import MultiAgentMetaDrive
 from metadrive.envs import MetaDriveEnv
 
 
@@ -35,7 +32,9 @@ def get_termination_reason(info):
             if info[value]:
                 return key
         except:
-            return -1
+            pass
+
+    return -1
 
 
 class Worker:
@@ -47,6 +46,7 @@ class Worker:
         self.connection = None
         self.current_step = 0
         self.agent_ids = {}
+        self.logger = Logger(self.scenario.id)
 
     async def send_message(self, queue_name, body):
         connection = await aio_pika.connect_robust(url=self.rabbitmq_url)
@@ -56,6 +56,34 @@ class Worker:
                 aio_pika.Message(body=body),
                 routing_key=queue_name,
             )
+
+    def generate_log_entry(self, move, info, tm, tr):
+
+        agent_states = {
+            agent_id: {
+                "position": self.env.engine.agents[agent_id].position.tolist(),
+                "velocity": self.env.engine.agents[agent_id].velocity.tolist(),
+                "is_human": True,
+            }
+            for agent_id in self.env.engine.agents
+        }
+
+        for av_id, av_obj in self.env.engine.traffic_manager.spawned_objects.items():
+            if av_id not in agent_states:
+                agent_states[av_id] = {
+                    "position": av_obj.position.tolist(),
+                    "velocity": av_obj.velocity.tolist(),
+                    "is_human": False
+                }
+
+        self.logger.add_entry(
+            step_num=self.current_step,
+            move_direction=move.direction,
+            agent_states=agent_states,
+            termination=tm,
+            truncation=tr,
+            info=info
+        )
 
 
     def get_vehicle_config(self):
@@ -96,6 +124,8 @@ class Worker:
             "truncate_as_terminate": False,
         }
         if not is_map_preview:
+            from core.multi_mixed_env import MultiPlayerEnv
+
             self.env = MultiPlayerEnv(config=config, avs=self.avs)
         else:
             config.pop('num_agents')
@@ -138,6 +168,7 @@ class Worker:
 
 
     async def process_finish(self, info):
+        self.logger.save()
         message_body = {
             "scenario_id": self.scenario.id,
             "status": "FINISHED",
@@ -166,9 +197,13 @@ class Worker:
 
 
         obs, reward, tm, tr, info = self.env.step(step)
-        print(info)
-        print(tr)
-        if tm['__all__'] or tr['__all__']:
+
+        self.generate_log_entry(move, info, tm, tr)
+
+        logging.warning(tm)
+        logging.warning(tr)
+
+        if tm['__all__'] or tr['__all__'] or tm['agent0'] or tr['agent0']:
             await self.process_finish(info)
 
         image = self.env.render(mode='topdown',
@@ -179,7 +214,8 @@ class Worker:
                                 screen_record=True,
                                 scaling=None,
                                 text={"episode step": self.env.engine.episode_step,
-                                      "move": move.direction})
+                                      "move": move.direction,
+                                      "speed m/s":  round(self.env.engine.agents['agent0'].speed, 2)})
 
         bytes_io = io.BytesIO()
         img = Image.fromarray(image)

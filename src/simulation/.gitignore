@@ -3,3 +3,4 @@ metadrive-main/
 venv/
 __pycache__/
 metadrive/
+logs/

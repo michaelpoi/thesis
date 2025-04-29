@@ -51,8 +51,7 @@ async def post_preview(preview: OfflineScenarioPreview):
         await queue.send_offline_sequence(collected_move, preview.scenario_id)
     image_bytes = await queue.wait_for_image(scenario_id=preview.scenario_id)
     if not image_bytes:
-        return {'stage': False}
-    print(image_bytes)
+        return Response(status_code=405)
 
     return Response(content=image_bytes, media_type="image/png")
 
