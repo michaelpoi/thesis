@@ -9,10 +9,28 @@ const OfflineScenario = () => {
         { steps: 1, steering: 0, acceleration: 0 }
     ]);
 
-    const [newMove, setNewMove] = useState({ steps: "", steering: "", acceleration: "" });
+    const [newMove, setNewMove] = useState({ steps: 100, steering: "", acceleration: "" });
     const navigate = useNavigate()
 
     const { id, vehicle_id } = useParams();
+
+    const setMoveByAlias = (alias) => {
+        switch (alias) {
+            case "UP":
+                setNewMove(prev => ({ ...prev, acceleration: 0.3, steering: 0.0 }));
+                break;
+            case "DOWN":
+                setNewMove(prev => ({ ...prev, acceleration: -0.3, steering: 0.0 }));
+                break;
+            case "LEFT":
+                setNewMove(prev => ({ ...prev, acceleration: 0.0, steering: -0.3 }));
+                break;
+            case "RIGHT":
+                setNewMove(prev => ({ ...prev, acceleration: 0.0, steering: 0.3 }));
+                break;
+        }
+    };
+
 
     useEffect(() => {
         fetch(`${process.env.REACT_APP_API_URL}/offline/init/${id}/`, {
@@ -161,7 +179,20 @@ const OfflineScenario = () => {
                     />
                 </div>
 
-                <button type="submit">Add Move</button>
+                <div className="arrow-keypad">
+                    <div className="empty"></div>
+                    <button onClick={() => setMoveByAlias("UP")}>↑</button>
+                    <div className="empty"></div>
+
+                    <button onClick={() => setMoveByAlias("LEFT")}>←</button>
+                    <button onClick={() => setMoveByAlias("DOWN")}>↓</button>
+                    <button onClick={() => setMoveByAlias("RIGHT")}>→</button>
+                </div>
+
+
+                <div className="add-move-wrapper">
+                  <button type="submit">Add Move</button>
+                </div>
             </form>
         </div>
     );

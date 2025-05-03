@@ -90,6 +90,14 @@ class OfflineWorker:
             for agent_id in self.env.engine.agents
         }
 
+        for av_id, av_obj in self.env.engine.traffic_manager.spawned_objects.items():
+            if av_id not in agent_states:
+                agent_states[av_id] = {
+                    "position": av_obj.position.tolist(),
+                    "velocity": av_obj.velocity.tolist(),
+                    "is_human": False
+                }
+
         self.logger.add_entry(
             step_num=self.current_step,
             move_direction='N/A',

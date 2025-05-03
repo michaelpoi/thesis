@@ -2,6 +2,7 @@ from metadrive.policy.idm_policy import IDMPolicy
 from metadrive.envs.marl_envs import MultiAgentMetaDrive
 from metadrive.manager import BaseManager
 from metadrive.component.vehicle.vehicle_type import DefaultVehicle
+import numpy as np
 
 class MovingExampleManager(BaseManager):
 
@@ -12,7 +13,10 @@ class MovingExampleManager(BaseManager):
     def before_step(self):
         for id, obj in self.spawned_objects.items():
             p = self.get_policy(id)
-            obj.before_step(p.act())  # set action
+            try:
+                obj.before_step(p.act())  # set action
+            except Exception as e:
+                pass
 
     def reset(self):
         for av in self.avs:
@@ -25,7 +29,10 @@ class MovingExampleManager(BaseManager):
 
     def after_step(self):
         for obj in self.spawned_objects.values():
-            obj.after_step()
+            try:
+                obj.after_step()
+            except:
+                pass
         # if self.episode_step == 180:
         #     self.clear_objects(list(self.spawned_objects.keys()))
 
