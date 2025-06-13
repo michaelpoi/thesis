@@ -14,9 +14,10 @@ const MapCreator = () =>{
 
     useEffect(() => {
         if (!mapId) return
+        setImageSrc('/loading.gif')
         const interval = setInterval(() => {
             setImageSrc(`${process.env.REACT_APP_API_URL}/static/${mapId}.png?t=${Date.now()}`);
-        }, 3000); // Check every 3 seconds
+        }, 2000); // Check every 3 seconds
 
         return () => clearInterval(interval);
     }, [mapId]);
