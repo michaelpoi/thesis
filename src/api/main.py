@@ -12,7 +12,6 @@ from routers.tasks import router as tasks_router
 from routers.auth import router as auth_router
 from routers.maps import router as maps_router
 from routers.offline_scenarios import router as offline_router
-from queues.images import queue
 from utils import create_admin, create_map
 
 @asynccontextmanager
@@ -56,10 +55,7 @@ app.include_router(offline_router, prefix='/api')
 async def main():
     config = Config(app=app,host=settings.host, port=settings.port, reload=settings.debug)
     server = Server(config=config)
-    await asyncio.gather(
-        server.serve(),
-        queue.consume_results()
-    )
+    await server.serve()
 
 
 

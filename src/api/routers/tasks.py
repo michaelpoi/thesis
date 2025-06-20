@@ -14,6 +14,7 @@ from database import async_session
 from schemas.results import Scenario as SScenario, Vehicle as SVehicle, ScenarioBase as SScenarioAdd
 from sqlalchemy.future import select
 from queues.queue import queue
+from queues.images import queue as img_queue
 from sqlalchemy.orm import joinedload
 from schemas.results import Move
 from auth.auth import get_current_user
@@ -107,25 +108,39 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                     data = "KEEP_ALIVE"
 
                 await session.refresh(scenario_db)
-                if scenario_db.status == ScenarioStatus.FINISHED:
-                    print("Scenario finished")
-                    await websocket.close(code=1008)
+                # if scenario_db.status == ScenarioStatus.FINISHED:
+                #     print("Scenario finished")
+                #     await websocket.close(code=1008)
 
                 move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=data)
                 print(move)
                 await queue.send_move(move)
                 try:
-                    image = Image.open(f"/app/{scenario_db.id}.png")
-                    img_bytes = io.BytesIO()
-                    image.save(img_bytes, format="PNG")  # Convert to PNG format
-                    img_bytes.seek(0)  # Reset cursor to start of the file
-
-                    # Send the image as bytes
-
-                    # Send the JSON message
-                    await websocket.send_bytes(img_bytes)
+                    current_frame = await asyncio.wait_for(img_queue.consume_results(task_id), 0.5)
                 except:
-                    pass
+                    print("Timed out")
+                    continue
+
+                if not current_frame:
+                    continue
+
+                if current_frame['alive']:
+                    await websocket.send_bytes(current_frame['image'])
+                else:
+                    print('Scenario Finished')
+                    await websocket.close(code=1008)
+                # try:
+                #     image = Image.open(f"/app/{scenario_db.id}.png")
+                #     img_bytes = io.BytesIO()
+                #     image.save(img_bytes, format="PNG")  # Convert to PNG format
+                #     img_bytes.seek(0)  # Reset cursor to start of the file
+                #
+                #     # Send the image as bytes
+                #
+                #     # Send the JSON message
+                #     await websocket.send_bytes(img_bytes)
+                # except:
+                #     pass
             except WebSocketDisconnect:
                 clients[task_id].remove(websocket)
                 #await websocket.close()
