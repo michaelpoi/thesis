@@ -17,9 +17,9 @@ sudo docker compose up --build -d
 If simulator and api containers are exited start them:
 
 ```shell
-sudo docker container start simulator
-sudo docker container start src-api-1
-sudo docker container restart nginx
+docker container start simulator
+docker container start src-api-1
+docker container restart nginx
 ```
 
 # Usage
