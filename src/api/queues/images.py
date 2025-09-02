@@ -71,6 +71,8 @@ class ImageQueue:
                             scenario.status = ScenarioStatus.FINISHED
                             await session.commit()
 
+                        self.save_gif(scenario_id, message_body['gif'])
+
                         return {
                             'alive': False,
                             'gif': base64.b64decode(message_body['gif'])
