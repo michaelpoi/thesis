@@ -3,7 +3,7 @@ FROM python:3.10-slim
 
 RUN apt-get update
 
-RUN apt-get install -y libgl1-mesa-glx
+RUN apt-get install -y libgl1
 
 RUN apt-get install -y build-essential
 
@@ -27,6 +27,9 @@ RUN python -m metadrive.pull_asset
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+#RUN mkdir /app/logs
+#RUN chmod +w -R /app/logs/
 
 
 # Set entrypoint
