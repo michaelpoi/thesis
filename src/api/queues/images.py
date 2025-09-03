@@ -84,9 +84,10 @@ class ImageQueue:
 
             # After consuming all messages, return the last relevant frame
             if last_relevant_message:
+                print("Message", last_relevant_message)
                 return {
                     'alive': True,
-                    'image': base64.b64decode(last_relevant_message['image_bytes'])
+                    'state': last_relevant_message['state']
                 }
 
             # No relevant message found

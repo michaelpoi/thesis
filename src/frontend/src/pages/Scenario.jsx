@@ -1,18 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
-import {useLocation, useNavigate} from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const Scenario = () => {
   const location = useLocation();
   const navigate = useNavigate()
-  const {task, usedVehicle} = location.state || {};
+  const { task, usedVehicle } = location.state || {};
   const ws = useRef(null); // Use useRef for WebSocket
-  const [imageSrc, setImageSrc] = useState(null);
+  // const [imageSrc, setImageSrc] = useState(null);
+  const [plot, setPlot] = useState(null);
 
   console.log(usedVehicle)
 
 
   const handleKeyDown = (e) => {
-    switch (e.which){
+    switch (e.which) {
       case 87:
         sendDirection("UP")
         break;
@@ -42,35 +43,37 @@ const Scenario = () => {
     ws.current = socket; // Store socket in ref
 
     socket.onmessage = (event) => {
-    try {
+      try {
 
-      const blob = new Blob([event.data], { type: "image/png" });
-      const url = URL.createObjectURL(blob); // Create an object URL
-      setImageSrc(url); // Set image source
-    } catch (error) {
-      console.error("Error processing WebSocket message:", error);
-    }
-
-    socket.onerror = () => {
-      navigate('/', {replace: true})
-    }
-
-    socket.onclose = (event) => {
-      console.log(`websocket closed code: ${event.code}`)
-      navigate('/', {replace: true})
-      switch (event.code){
-        case 1000:
-          navigate(`/result/${task.id}/`, {replace: true});
-          break;
-        case 4001:
-          navigate(`/login`, {replace: true});
-          break;
-        case 1008:
-          navigate(`/result/${task.id}/`, {replace: true});
-          break;
+        // const blob = new Blob([event.data], { type: "image/png" });
+        // const url = URL.createObjectURL(blob); // Create an object URL
+        // setImageSrc(url); // Set image source
+        console.log(event.data);
+        setPlot(event.data);
+      } catch (error) {
+        console.error("Error processing WebSocket message:", error);
       }
-    }
-  };
+
+      socket.onerror = () => {
+        navigate('/', { replace: true })
+      }
+
+      socket.onclose = (event) => {
+        console.log(`websocket closed code: ${event.code}`)
+        navigate('/', { replace: true })
+        switch (event.code) {
+          case 1000:
+            navigate(`/result/${task.id}/`, { replace: true });
+            break;
+          case 4001:
+            navigate(`/login`, { replace: true });
+            break;
+          case 1008:
+            navigate(`/result/${task.id}/`, { replace: true });
+            break;
+        }
+      }
+    };
 
     // Add keydown event listener
     document.addEventListener("keydown", handleKeyDown);
@@ -92,8 +95,15 @@ const Scenario = () => {
         <button onClick={() => sendDirection("RIGHT")}>Right</button>
       </div>
       <div>
-        <h4>Messages:</h4>
-              {imageSrc ? <img src={imageSrc} alt="WebSocket Image" /> : <p>Waiting for image...</p>}
+        {plot ? (
+          <iframe
+            srcDoc={plot}
+            title="mpld3 plot"
+            style={{ width: "100%", height: "500px", border: "none" }}
+          />
+        ) : (
+          <p>Waiting for plot...</p>
+        )}
       </div>
     </div>
   );

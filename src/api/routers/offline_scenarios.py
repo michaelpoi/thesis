@@ -37,7 +37,6 @@ async def get_preview(move: OfflineScenarioPreview):
 @router.post('/submit')
 async def post_preview(preview: OfflineScenarioPreview):
     await OfflineScheduler.save_move(preview)
-    await asyncio.sleep(1)
     # collected_move =  await OfflineScheduler.get_global_move(preview.scenario_id, preview.vehicle_id)
     total_steps = sum([prv.steps for prv in preview.moves])
     collected_move = {
