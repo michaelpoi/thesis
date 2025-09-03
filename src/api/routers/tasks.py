@@ -113,7 +113,6 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                 #     await websocket.close(code=1008)
 
                 move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=data)
-                print(move)
                 await queue.send_move(move)
                 try:
                     current_frame = await asyncio.wait_for(img_queue.consume_results(task_id), 0.5)

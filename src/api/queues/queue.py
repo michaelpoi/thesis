@@ -65,14 +65,7 @@ class Queue:
         async with connection:
             channel = await connection.channel()
 
-            # ✅ Correct queue name
             queue = await channel.declare_queue(queue_name)
-
-            # try:
-            #     return await asyncio.wait_for(self._consume_image(queue), timeout=10)  # ⏳ 10 sec timeout
-            # except asyncio.TimeoutError:
-            #     print("⏳ Timeout waiting for image.")
-            #     return None
 
             return await self._consume_image(queue)
 

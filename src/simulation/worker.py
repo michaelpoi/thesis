@@ -235,7 +235,6 @@ class Worker:
             async for message in queue:
                 async with message.process():
                     move_json = json.loads(message.body)
-                    print(move_json)
                     move = Move(**move_json)
                     await self.process_move(move)
 
