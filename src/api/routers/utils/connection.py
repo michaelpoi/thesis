@@ -18,3 +18,7 @@ class ConnectionManager:
         for connection in self.clients.get(scenario_id, []):
             await connection.send_text(message)
 
+    async def broadcast_json(self, scenario_id: int, data: dict):
+        for connection in self.clients.get(scenario_id, []):
+            await connection.send_json(data)
+

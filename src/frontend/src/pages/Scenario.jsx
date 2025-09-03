@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import mpld3 from "mpld3";
 
 const Scenario = () => {
   const location = useLocation();
@@ -49,7 +50,8 @@ const Scenario = () => {
         // const url = URL.createObjectURL(blob); // Create an object URL
         // setImageSrc(url); // Set image source
         console.log(event.data);
-        setPlot(event.data);
+        const data = JSON.parse(event.data); // Parse JSON
+        setPlot(data);
       } catch (error) {
         console.error("Error processing WebSocket message:", error);
       }
@@ -85,6 +87,16 @@ const Scenario = () => {
     };
   }, [task.id, usedVehicle]); // Reconnect WebSocket when task or vehicle changes
 
+  useEffect(() => {
+    if (plot) {
+      const figDiv = document.getElementById("fig1");
+      if (figDiv){
+        figDiv.innerHTML = ""; // Clear previous plot
+      }
+      mpld3.draw_figure("fig1", plot);
+    }
+  }, [plot]);
+
   return (
     <div>
       <h3>Connected to Task: {task.name}</h3>
@@ -95,7 +107,7 @@ const Scenario = () => {
         <button onClick={() => sendDirection("RIGHT")}>Right</button>
       </div>
       <div>
-        {plot ? (
+        {/* {plot ? (
           <iframe
             srcDoc={plot}
             title="mpld3 plot"
@@ -103,7 +115,11 @@ const Scenario = () => {
           />
         ) : (
           <p>Waiting for plot...</p>
-        )}
+        )} */}
+
+        <div id="fig1"></div>
+
+
       </div>
     </div>
   );

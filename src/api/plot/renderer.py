@@ -27,3 +27,9 @@ class Renderer:
     
     def get_html(self):
         return mpld3.fig_to_html(self.draw_plot())
+    
+
+
+    def get_dict(self):
+        return mpld3.fig_to_dict(self.draw_plot())
+    

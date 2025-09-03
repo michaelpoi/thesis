@@ -118,8 +118,8 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
                 if current_state['alive']:
                     plt_info = current_state['state']
-                    plt_html = Renderer(plt_info).get_html()
-                    await manager.broadcast(task_id, plt_html)
+                    plt_json= Renderer(plt_info).get_dict()
+                    await manager.broadcast_json(task_id, plt_json)
                     asyncio.sleep(5)
                     # await websocket.send_bytes(current_frame['image'])
                 else:
