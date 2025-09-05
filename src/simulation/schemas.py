@@ -18,6 +18,7 @@ class Move(BaseModel):
     scenario_id: int
     vehicle_id: int
     direction: str
+    timestamp: Optional[int]
 
 class Vehicle(BaseModel):
     id: int

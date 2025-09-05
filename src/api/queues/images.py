@@ -3,7 +3,6 @@ import json
 import os
 
 import aio_pika
-import io
 from settings import settings
 from db.scenario_repository import ScenarioRepository
 from database import async_session
@@ -14,18 +13,6 @@ class ImageQueue:
     def __init__(self, rabbitmq_url:str):
         self.rabbitmq_url = rabbitmq_url
 
-    # def save_frame(self, scenario_id, step_num, image_bytes):
-    #     #file_name = settings.static_dir / "frames" / str(scenario_id) / f"{str(step_num)}.png"
-    #     file_name = settings.base_dir / f"{scenario_id}.png"
-    #     dir_name = os.path.dirname(file_name)
-    #
-    #     if not os.path.exists(dir_name):
-    #         os.makedirs(dir_name, exist_ok=True)
-    #
-    #     decoded_bytes = base64.b64decode(image_bytes)
-    #
-    #     with open(file_name, "wb+") as f:
-    #         f.write(decoded_bytes)
 
     def save_gif(self, scenario_id, gif_bytes):
         gif_path = settings.static_dir / "gifs" / f"{scenario_id}.gif"
@@ -84,7 +71,7 @@ class ImageQueue:
 
             # After consuming all messages, return the last relevant frame
             if last_relevant_message:
-                print("Message", last_relevant_message)
+                # print("Message", last_relevant_message)
                 return {
                     'alive': True,
                     'state': last_relevant_message['state']

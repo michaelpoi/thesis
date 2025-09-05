@@ -96,19 +96,24 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
         await queue.send_init(scenario_schema)
 
+        rendered = Renderer()
+
         while True:
             try:
                 try:
-                    data = await asyncio.wait_for(websocket.receive_text(), 0.1)
+                    data = await asyncio.wait_for(websocket.receive_json(), 0.5) # TODO: 
+                    dir = data.get('direction')
+                    time = data.get('timestamp')
                 except asyncio.TimeoutError:
-                    data = "KEEP_ALIVE"
+                    time = None
+                    dir = "KEEP_ALIVE"
 
-                await session.refresh(scenario_db)
+                # await session.refresh(scenario_db) could slow things down
 
-                move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=data)
+                move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=dir, timestamp=time)
                 await queue.send_move(move)
                 try:
-                    current_state = await asyncio.wait_for(img_queue.consume_results(task_id), 0.5)
+                    current_state = await asyncio.wait_for(img_queue.consume_results(task_id), 0.1) # TODO: was 0.5 
                 except:
                     print("Timed out")
                     continue
@@ -118,26 +123,18 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
                 if current_state['alive']:
                     plt_info = current_state['state']
-                    plt_json= Renderer(plt_info).get_dict()
-                    await manager.broadcast_json(task_id, plt_json)
-                    asyncio.sleep(5)
-                    # await websocket.send_bytes(current_frame['image'])
+                    plt_json= rendered.get_dict(plt_info)
+                    print(plt_info.get('time', None))
+                    data = {
+                        'plt': plt_json,
+                        'time': plt_info.get('time', None)
+                    }
+                    await manager.broadcast_json(task_id, data)
                 else:
                     print('Scenario Finished')
                     await websocket.close(code=1008)
                     return
-                # try:
-                #     image = Image.open(f"/app/{scenario_db.id}.png")
-                #     img_bytes = io.BytesIO()
-                #     image.save(img_bytes, format="PNG")  # Convert to PNG format
-                #     img_bytes.seek(0)  # Reset cursor to start of the file
-                #
-                #     # Send the image as bytes
-                #
-                #     # Send the JSON message
-                #     await websocket.send_bytes(img_bytes)
-                # except:
-                #     pass
+                
             except WebSocketDisconnect:
                 manager.disconnect(task_id, websocket)
                 await websocket.close()

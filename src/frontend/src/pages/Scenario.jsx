@@ -9,6 +9,7 @@ const Scenario = () => {
   const ws = useRef(null); // Use useRef for WebSocket
   // const [imageSrc, setImageSrc] = useState(null);
   const [plot, setPlot] = useState(null);
+  const [ping, setPing] = useState(0);
 
   console.log(usedVehicle)
 
@@ -33,7 +34,10 @@ const Scenario = () => {
   const sendDirection = (direction) => {
     if (ws.current) {
       console.log(direction);
-      ws.current.send(direction);
+      ws.current.send(JSON.stringify({
+        direction: direction,
+        timestamp: Date.now()
+      }));
     }
   };
 
@@ -51,7 +55,13 @@ const Scenario = () => {
         // setImageSrc(url); // Set image source
         console.log(event.data);
         const data = JSON.parse(event.data); // Parse JSON
-        setPlot(data);
+        setPlot(data.plt);
+
+        console.log(data.time);
+        if (data.time){
+          setPing(Date.now() - data.time); 
+        }
+        
       } catch (error) {
         console.error("Error processing WebSocket message:", error);
       }
@@ -90,7 +100,7 @@ const Scenario = () => {
   useEffect(() => {
     if (plot) {
       const figDiv = document.getElementById("fig1");
-      if (figDiv){
+      if (figDiv) {
         figDiv.innerHTML = ""; // Clear previous plot
       }
       mpld3.draw_figure("fig1", plot);
@@ -106,6 +116,7 @@ const Scenario = () => {
         <button onClick={() => sendDirection("LEFT")}>Left</button>
         <button onClick={() => sendDirection("RIGHT")}>Right</button>
       </div>
+      <h4>Current ping: { ping }</h4>
       <div>
         {/* {plot ? (
           <iframe

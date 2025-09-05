@@ -111,6 +111,17 @@ class Worker:
                 humans.append(vehicle)
 
         return avs, humans
+    
+    def get_map(self):
+        lanes = {}
+        for ind, lane in enumerate(self.env.engine.current_map.road_network.get_all_lanes()):
+            print(lane.get_polyline())
+            xs, ys = zip(*lane.get_polyline())
+            lanes[ind] = {}
+            lanes[ind]['x'] = list(xs)
+            lanes[ind]['y'] = list(ys)
+
+        return lanes
 
 
 
@@ -172,6 +183,7 @@ class Worker:
             "scenario_id": self.scenario.id,
             "status": "ACTIVE",
             "step": self.current_step,
+            "map": self.get_map(),
             "state": state
         }
         json_data = json.dumps(message_body, indent=2, default=self.logger.to_serializable).encode("utf-8")
@@ -186,7 +198,7 @@ class Worker:
             "scenario_id": self.scenario.id,
             "status": "FINISHED",
             "reason": get_termination_reason(info),
-            "gif": self.generate_gif(),
+            # "gif": self.generate_gif(), Gif is not available when render is off
         }
         message_data = json.dumps(message_body).encode("utf-8")
         await self.send_message(self.results_queue_name, message_data)
@@ -215,6 +227,7 @@ class Worker:
         obs, reward, tm, tr, info = self.env.step(step)
 
         state = self.generate_log_entry(move, info, tm, tr, True)
+        state['time'] = move.timestamp
 
 
         if tm['__all__'] or tr['__all__'] or tm['agent0'] or tr['agent0']:
