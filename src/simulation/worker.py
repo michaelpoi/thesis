@@ -3,6 +3,7 @@ import base64
 import io
 import json
 import os
+from datetime import datetime
 
 from logger import Logger
 from schemas import Move
@@ -115,7 +116,6 @@ class Worker:
     def get_map(self):
         lanes = {}
         for ind, lane in enumerate(self.env.engine.current_map.road_network.get_all_lanes()):
-            print(lane.get_polyline())
             xs, ys = zip(*lane.get_polyline())
             lanes[ind] = {}
             lanes[ind]['x'] = list(xs)
@@ -209,8 +209,8 @@ class Worker:
 
         
     async def process_move(self, move: Move):
+        start = datetime.now()
         move_arr = MoveConverter.convert(move)
-        print(move)
         ego_agent_id = self.agent_ids[move.vehicle_id]
         step = {}
         for agent_id in self.agent_ids.values():
@@ -220,8 +220,6 @@ class Worker:
             else:
                 step[agent_id] = np.array([0,0])
 
-        print(step)
-        print(self.env.agent_manager.active_agents)
 
 
         obs, reward, tm, tr, info = self.env.step(step)
@@ -235,24 +233,8 @@ class Worker:
 
         await self.send_json(state)
 
-        # image = self.env.render(mode='topdown',
-        #                         window=False,
-        #                         film_size = (1000, 1000),
-        #                         screen_size = (1000, 1000),
-        #                         camera_position=self.env.current_map.get_center_point(),
-        #                         screen_record=True,
-        #                         scaling=None,
-        #                         text={"episode step": self.env.engine.episode_step,
-        #                               "move": move.direction,
-        #                               "speed m/s":  round(self.env.engine.agents['agent0'].speed, 2)})
+        logging.warning(f"Step time: {datetime.now() - start}")
 
-
-        # bytes_io = io.BytesIO()
-        # img = Image.fromarray(image)
-        # img.save(bytes_io, format="PNG")
-        # image_bytes = bytes_io.getvalue()
-
-        # await self.send_frame(image_bytes)
         self.current_step += 1
         return True
 
@@ -287,7 +269,6 @@ class Worker:
         }
 
         res = requests.post(f"{os.getenv('API_URL')}/maps/{self.scenario.map.id}", files=files)
-        print(res.status_code)
 
         exit(0)
 

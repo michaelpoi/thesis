@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY package*.json ./
 RUN npm install
-RUN npm install mpld3
+RUN npm install three
 
 COPY . .
 

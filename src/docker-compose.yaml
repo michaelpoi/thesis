@@ -50,24 +50,24 @@ services:
       - POSTGRES_PASSWORD=metasimulator
       - POSTGRES_DB=metasimulator
 
-  simulator:
-    build:
-      context: ./simulation
-      dockerfile: ./Dockerfile
+  # simulator:
+  #   build:
+  #     context: ./simulation
+  #     dockerfile: ./Dockerfile
 
-    container_name: simulator
+  #   container_name: simulator
 
-    depends_on:
-      - rabbitmq
-      - api
-    environment:
-      - rq_host=rabbitmq
-      - API_URL=http://api:8000/api
+  #   depends_on:
+  #     - rabbitmq
+  #     - api
+  #   environment:
+  #     - rq_host=rabbitmq
+  #     - API_URL=http://api:8000/api
 
-    volumes:
-      - ./simulation/logs:/app/logs
+  #   volumes:
+  #     - ./simulation/logs:/app/logs
 
-    restart: always
+  #   restart: always
 
 
   nginx:

@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import mpld3 from "mpld3";
+import VehiclePlot from "../components/VehiclePlot";
 
 const Scenario = () => {
   const location = useLocation();
   const navigate = useNavigate()
   const { task, usedVehicle } = location.state || {};
   const ws = useRef(null); // Use useRef for WebSocket
+  const mountRef = useRef(null);
   // const [imageSrc, setImageSrc] = useState(null);
-  const [plot, setPlot] = useState(null);
+  const [vehiclePos, setVehiclePos] = useState([0,0]);
   const [ping, setPing] = useState(0);
 
   console.log(usedVehicle)
@@ -41,6 +42,8 @@ const Scenario = () => {
     }
   };
 
+
+
   useEffect(() => {
     // Create WebSocket connection
     const socket = new WebSocket(`ws://127.0.0.1/api/tasks/ws/${task.id}/${usedVehicle}/`, [localStorage.getItem('token')]);
@@ -55,7 +58,8 @@ const Scenario = () => {
         // setImageSrc(url); // Set image source
         console.log(event.data);
         const data = JSON.parse(event.data); // Parse JSON
-        setPlot(data.plt);
+        console.log(data);
+        setVehiclePos(data.plt.positions)
 
         console.log(data.time);
         if (data.time){
@@ -97,15 +101,6 @@ const Scenario = () => {
     };
   }, [task.id, usedVehicle]); // Reconnect WebSocket when task or vehicle changes
 
-  useEffect(() => {
-    if (plot) {
-      const figDiv = document.getElementById("fig1");
-      if (figDiv) {
-        figDiv.innerHTML = ""; // Clear previous plot
-      }
-      mpld3.draw_figure("fig1", plot);
-    }
-  }, [plot]);
 
   return (
     <div>
@@ -128,7 +123,7 @@ const Scenario = () => {
           <p>Waiting for plot...</p>
         )} */}
 
-        <div id="fig1"></div>
+          <VehiclePlot vehiclePos={vehiclePos} heading={0} metersToUnits={1} />
 
 
       </div>

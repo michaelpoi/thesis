@@ -44,6 +44,8 @@ class Renderer:
     
 
 
+    # def get_dict(self, state):
+    #     return mpld3.fig_to_dict(self.draw_plot(state))
+
     def get_dict(self, state):
-        return mpld3.fig_to_dict(self.draw_plot(state))
-    
+        return { 'positions': state['positions']['agent0']['position'] }
