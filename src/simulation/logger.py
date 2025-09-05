@@ -21,6 +21,7 @@ class Logger:
             "info": info
         }
         self.logs.append(entry)
+        return entry
 
     def to_serializable(self, obj):
         if isinstance(obj, (np.integer, np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64)):

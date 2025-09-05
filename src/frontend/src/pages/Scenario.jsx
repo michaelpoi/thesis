@@ -1,18 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
-import {useLocation, useNavigate} from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import mpld3 from "mpld3";
 
 const Scenario = () => {
   const location = useLocation();
   const navigate = useNavigate()
-  const {task, usedVehicle} = location.state || {};
+  const { task, usedVehicle } = location.state || {};
   const ws = useRef(null); // Use useRef for WebSocket
-  const [imageSrc, setImageSrc] = useState(null);
+  // const [imageSrc, setImageSrc] = useState(null);
+  const [plot, setPlot] = useState(null);
+  const [ping, setPing] = useState(0);
 
   console.log(usedVehicle)
 
 
   const handleKeyDown = (e) => {
-    switch (e.which){
+    switch (e.which) {
       case 87:
         sendDirection("UP")
         break;
@@ -31,7 +34,10 @@ const Scenario = () => {
   const sendDirection = (direction) => {
     if (ws.current) {
       console.log(direction);
-      ws.current.send(direction);
+      ws.current.send(JSON.stringify({
+        direction: direction,
+        timestamp: Date.now()
+      }));
     }
   };
 
@@ -42,35 +48,44 @@ const Scenario = () => {
     ws.current = socket; // Store socket in ref
 
     socket.onmessage = (event) => {
-    try {
+      try {
 
-      const blob = new Blob([event.data], { type: "image/png" });
-      const url = URL.createObjectURL(blob); // Create an object URL
-      setImageSrc(url); // Set image source
-    } catch (error) {
-      console.error("Error processing WebSocket message:", error);
-    }
+        // const blob = new Blob([event.data], { type: "image/png" });
+        // const url = URL.createObjectURL(blob); // Create an object URL
+        // setImageSrc(url); // Set image source
+        console.log(event.data);
+        const data = JSON.parse(event.data); // Parse JSON
+        setPlot(data.plt);
 
-    socket.onerror = () => {
-      navigate('/', {replace: true})
-    }
-
-    socket.onclose = (event) => {
-      console.log(`websocket closed code: ${event.code}`)
-      navigate('/', {replace: true})
-      switch (event.code){
-        case 1000:
-          navigate(`/result/${task.id}/`, {replace: true});
-          break;
-        case 4001:
-          navigate(`/login`, {replace: true});
-          break;
-        case 1008:
-          navigate(`/result/${task.id}/`, {replace: true});
-          break;
+        console.log(data.time);
+        if (data.time){
+          setPing(Date.now() - data.time); 
+        }
+        
+      } catch (error) {
+        console.error("Error processing WebSocket message:", error);
       }
-    }
-  };
+
+      socket.onerror = () => {
+        navigate('/', { replace: true })
+      }
+
+      socket.onclose = (event) => {
+        console.log(`websocket closed code: ${event.code}`)
+        navigate('/', { replace: true })
+        switch (event.code) {
+          case 1000:
+            navigate(`/result/${task.id}/`, { replace: true });
+            break;
+          case 4001:
+            navigate(`/login`, { replace: true });
+            break;
+          case 1008:
+            navigate(`/result/${task.id}/`, { replace: true });
+            break;
+        }
+      }
+    };
 
     // Add keydown event listener
     document.addEventListener("keydown", handleKeyDown);
@@ -82,6 +97,16 @@ const Scenario = () => {
     };
   }, [task.id, usedVehicle]); // Reconnect WebSocket when task or vehicle changes
 
+  useEffect(() => {
+    if (plot) {
+      const figDiv = document.getElementById("fig1");
+      if (figDiv) {
+        figDiv.innerHTML = ""; // Clear previous plot
+      }
+      mpld3.draw_figure("fig1", plot);
+    }
+  }, [plot]);
+
   return (
     <div>
       <h3>Connected to Task: {task.name}</h3>
@@ -91,9 +116,21 @@ const Scenario = () => {
         <button onClick={() => sendDirection("LEFT")}>Left</button>
         <button onClick={() => sendDirection("RIGHT")}>Right</button>
       </div>
+      <h4>Current ping: { ping }</h4>
       <div>
-        <h4>Messages:</h4>
-              {imageSrc ? <img src={imageSrc} alt="WebSocket Image" /> : <p>Waiting for image...</p>}
+        {/* {plot ? (
+          <iframe
+            srcDoc={plot}
+            title="mpld3 plot"
+            style={{ width: "100%", height: "500px", border: "none" }}
+          />
+        ) : (
+          <p>Waiting for plot...</p>
+        )} */}
+
+        <div id="fig1"></div>
+
+
       </div>
     </div>
   );

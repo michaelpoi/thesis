@@ -67,6 +67,8 @@ services:
     volumes:
       - ./simulation/logs:/app/logs
 
+    restart: always
+
 
   nginx:
     image: nginx:alpine
