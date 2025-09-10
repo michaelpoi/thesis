@@ -4,103 +4,85 @@ import VehiclePlot from "../components/VehiclePlot";
 
 const Scenario = () => {
   const location = useLocation();
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   const { task, usedVehicle } = location.state || {};
-  const ws = useRef(null); // Use useRef for WebSocket
-  const mountRef = useRef(null);
-  // const [imageSrc, setImageSrc] = useState(null);
-  const [vehiclePos, setVehiclePos] = useState([0,0]);
+  const ws = useRef(null);
+
+  const [vehicles, setVehicles] = useState([]);
+  const [map, setMap] = useState(null);   // 👈 store the map here (once)
   const [ping, setPing] = useState(0);
-
-  console.log(usedVehicle)
-
+  const [step, setStep] = useState(0);
 
   const handleKeyDown = (e) => {
     switch (e.which) {
-      case 87:
-        sendDirection("UP")
-        break;
-      case 68:
-        sendDirection("RIGHT")
-        break;
-      case 65:
-        sendDirection("LEFT")
-        break;
-      case 83:
-        sendDirection("DOWN")
-        break;
+      case 87: sendDirection("UP"); break;
+      case 68: sendDirection("RIGHT"); break;
+      case 65: sendDirection("LEFT"); break;
+      case 83: sendDirection("DOWN"); break;
+      default: break;
     }
   };
 
   const sendDirection = (direction) => {
     if (ws.current) {
-      console.log(direction);
-      ws.current.send(JSON.stringify({
-        direction: direction,
-        timestamp: Date.now()
-      }));
+      ws.current.send(JSON.stringify({ direction, timestamp: Date.now() }));
     }
   };
 
-
-
   useEffect(() => {
-    // Create WebSocket connection
-    const socket = new WebSocket(`ws://127.0.0.1/api/tasks/ws/${task.id}/${usedVehicle}/`, [localStorage.getItem('token')]);
-
-    ws.current = socket; // Store socket in ref
+    const socket = new WebSocket(
+      `ws://127.0.0.1/api/tasks/ws/${task.id}/${usedVehicle}/`,
+      [localStorage.getItem("token")]
+    );
+    ws.current = socket;
 
     socket.onmessage = (event) => {
       try {
+        const raw = JSON.parse(event.data);
+        const alive = raw.alive
+        console.log(alive)
+        const plt = raw.plt ?? raw; // your payload uses { plt: { positions, map }, time }
 
-        // const blob = new Blob([event.data], { type: "image/png" });
-        // const url = URL.createObjectURL(blob); // Create an object URL
-        // setImageSrc(url); // Set image source
-        console.log(event.data);
-        const data = JSON.parse(event.data); // Parse JSON
-        console.log(data);
-        setVehiclePos(data.plt.positions)
-
-        console.log(data.time);
-        if (data.time){
-          setPing(Date.now() - data.time); 
+        // Vehicles from positions:
+        if (plt?.positions) {
+          const nextVehicles = Object.entries(plt.positions).map(([id, agent]) => ({
+            id,
+            pos: agent.position,
+            heading: agent.heading, // keep simple; or compute from velocity if you want
+            color: agent.is_human ? 0xff3b30 : 0x2ecc71,
+          }));
+          setVehicles(nextVehicles);
         }
-        
-      } catch (error) {
-        console.error("Error processing WebSocket message:", error);
-      }
 
-      socket.onerror = () => {
-        navigate('/', { replace: true })
-      }
-
-      socket.onclose = (event) => {
-        console.log(`websocket closed code: ${event.code}`)
-        navigate('/', { replace: true })
-        switch (event.code) {
-          case 1000:
-            navigate(`/result/${task.id}/`, { replace: true });
-            break;
-          case 4001:
-            navigate(`/login`, { replace: true });
-            break;
-          case 1008:
-            navigate(`/result/${task.id}/`, { replace: true });
-            break;
+        // Map only once (first time it appears)
+        if (plt?.map && Object.keys(plt.map).length) {
+          setMap((prev) => (prev ? prev : plt.map));
         }
+
+        if (raw.time) setPing(Date.now() - raw.time);
+        setStep(raw.step);
+      } catch (err) {
+        console.error("WS parse error:", err);
       }
     };
 
-    // Add keydown event listener
-    document.addEventListener("keydown", handleKeyDown);
+    socket.onerror = () => navigate("/", { replace: true });
 
-    // Cleanup event listener and WebSocket connection on unmount
+    socket.onclose = (event) => {
+      switch (event.code) {
+        case 1000: navigate(`/result/${task.id}/`, { replace: true }); break;
+        case 4001: navigate(`/login`, { replace: true }); break;
+        case 1008: navigate(`/result/${task.id}/`, { replace: true }); break;
+        default:  navigate("/", { replace: true });
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       socket.close();
     };
-  }, [task.id, usedVehicle]); // Reconnect WebSocket when task or vehicle changes
-
+  }, [task.id, usedVehicle, navigate]);
 
   return (
     <div>
@@ -111,22 +93,15 @@ const Scenario = () => {
         <button onClick={() => sendDirection("LEFT")}>Left</button>
         <button onClick={() => sendDirection("RIGHT")}>Right</button>
       </div>
-      <h4>Current ping: { ping }</h4>
-      <div>
-        {/* {plot ? (
-          <iframe
-            srcDoc={plot}
-            title="mpld3 plot"
-            style={{ width: "100%", height: "500px", border: "none" }}
-          />
-        ) : (
-          <p>Waiting for plot...</p>
-        )} */}
+      <h4>Current ping: {ping}</h4>
+      <h4>Current step: {step}</h4>
 
-          <VehiclePlot vehiclePos={vehiclePos} heading={0} metersToUnits={1} />
-
-
-      </div>
+      <VehiclePlot
+        vehicles={vehicles}
+        map={map}                 // 👈 pass the map here
+        metersToUnits={1}
+        followId="agent0"
+      />
     </div>
   );
 };

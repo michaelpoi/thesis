@@ -4,6 +4,7 @@ import mpld3
 class Renderer:
     def __init__(self):
         self.history_coords = []
+        self.is_map_sent = False
 
     def draw_plot(self,  state):
         plt.figure(figsize=(10, 6))
@@ -47,5 +48,6 @@ class Renderer:
     # def get_dict(self, state):
     #     return mpld3.fig_to_dict(self.draw_plot(state))
 
-    def get_dict(self, state):
-        return { 'positions': state['positions']['agent0']['position'] }
+    def get_dict(self, state, map):
+        
+        return { 'positions': state['positions'], 'map': map }

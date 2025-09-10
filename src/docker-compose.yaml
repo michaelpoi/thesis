@@ -17,6 +17,9 @@ services:
       - db_host=postgres
       - rq_host=rabbitmq
 
+    volumes:
+      - ./api/simulation_logs:/app/logs
+
 
   rabbitmq:
     image: rabbitmq:4.0-management-alpine

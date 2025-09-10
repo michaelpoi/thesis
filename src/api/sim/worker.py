@@ -5,13 +5,14 @@ from sim.logger import Logger
 from schemas.results import Move
 from sim.move_converter import MoveConverter
 import numpy as np
+import logging
 
 from metadrive.envs import MetaDriveEnv
 
 
 
 class Worker:
-    def __init__(self, scenario):
+    def __init__(self, scenario, pipe=None):
         self.scenario = scenario
         self.avs, self.humans = self.split_vehicles()
         self.env = None
@@ -19,6 +20,7 @@ class Worker:
         self.current_step = 0
         self.agent_ids = {}
         self.logger = Logger(self.scenario.id)
+        self.pipe = pipe
 
     
 
@@ -28,6 +30,7 @@ class Worker:
             agent_id: {
                 "position": self.env.engine.agents[agent_id].position.tolist(),
                 "velocity": self.env.engine.agents[agent_id].velocity.tolist(),
+                "heading": self.env.engine.agents[agent_id].heading_theta,
                 "is_human": True,
             }
             for agent_id in self.env.engine.agents
@@ -105,6 +108,8 @@ class Worker:
         for human, agent_id in zip(self.humans, self.env.agents.keys()):
             self.agent_ids[human.id] = agent_id
 
+
+
     def setup_vehicle(self):
         for vehicle in self.humans:
             agent_id = self.agent_ids[vehicle.id]
@@ -117,46 +122,104 @@ class Worker:
 
 
 
-    def get_json(self, state):
+    def get_json(self, state, status="ACTIVE"):
         message_body = {
             "scenario_id": self.scenario.id,
-            "status": "ACTIVE",
+            "status": status,
             "step": self.current_step,
             "map": self.get_map(),
             "state": state
         }
 
         return message_body
+    
+    
 
+    def consume_moves(self):
+
+        # def recv(timeout=0.1):
+        #     if self.pipe.poll(timeout):
+        #         return self.pipe.recv()
+        #     return None
+
+        active = True
+        
+
+        while active:
+            move = self.pipe.recv()
+
+            # if not move:
+            #     move = Move(scenario_id=self.scenario.id, vehicle_id=None, direction="KEEP_ALIVE", timestamp=None)
+            response, active = self.process_move(move)
+            self.pipe.send(response)
+    
+
+    def process_finish(self, state, status="FINISHED"):
+        logging.info(f"Scenario {self.scenario.id} finished at step {self.current_step}")
+
+        state = self.get_json(state, status=status)
+
+        if status == "FINISHED":
+            self.logger.save()
+            self.env.close()
+
+        return state
+        # TODO: Could be refactored
 
 
 
         
     def process_move(self, move: Move):
         move_arr = MoveConverter.convert(move)
-        ego_agent_id = self.agent_ids[move.vehicle_id]
+        if move.direction == "KEEP_ALIVE":
+            ego_agent_id = None
+        
+        else:
+            ego_agent_id = self.agent_ids[move.vehicle_id]
+
         step = {}
         for agent_id in self.agent_ids.values():
-            if agent_id == ego_agent_id:
+            if agent_id and agent_id == ego_agent_id:
                 step[agent_id] = move_arr
 
             else:
                 step[agent_id] = np.array([0,0])
 
 
+        
+            try:
+                obs, reward, tm, tr, info = self.env.step(step)
+            except KeyError:
+                logging.warning("Catched KeyError")
+                for agent_id in self.env.agents.keys():
+                    if agent_id not in step:            # Weird Bug
+                        step[agent_id] = np.array([0,0])
 
-        obs, reward, tm, tr, info = self.env.step(step)
+                obs, reward, tm, tr, info = self.env.step(step)
+        
 
         state = self.generate_log_entry(move, info, tm, tr, True)
         state['time'] = move.timestamp
 
 
-        if tm['__all__'] or tr['__all__'] or tm['agent0'] or tr['agent0']:
-            pass
+        if all(tm.get(agent_id, True) or tr.get(agent_id, True) for agent_id in self.agent_ids.values()):  # Strange Bug with MetaDrive
+            logging.warning("All agents done")
+            return self.process_finish(state), False
+        elif ego_agent_id and (tm.get(ego_agent_id, True) or tr.get(ego_agent_id, True)):
+            logging.warning(f"Agent {ego_agent_id} done")
+            # if ego_agent_id in self.agent_ids.values():
+            #     del self.agent_ids[ego_agent_id]
+            return self.process_finish(state, "TERMINATED"), True
+            
 
         self.current_step += 1
 
-        return self.get_json(state)
+        return self.get_json(state), True
+    
+    def run(self):
+        self.setup_env()
+        self.setup_vehicle()
+        self.consume_moves()
 
 
 

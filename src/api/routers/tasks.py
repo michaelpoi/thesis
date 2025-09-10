@@ -3,6 +3,7 @@ from typing import List
 import asyncio
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from fastapi import APIRouter, Depends
+import logging
 
 from db.scenario_repository import ScenarioRepository
 from datetime import datetime
@@ -17,6 +18,7 @@ from schemas.results import Move
 from auth.auth import get_current_user
 from routers.utils.connection import ConnectionManager
 from sim.worker import Worker
+from sim.manager import manager as sim_manager
 
 from models.scenario import ScenarioStatus
 from plot.renderer import Renderer
@@ -98,17 +100,14 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
         # await queue.send_init(scenario_schema)
 
-        worker = Worker(scenario_schema)
-        worker.setup_env()
-        worker.setup_vehicle()
+        sim_manager.register_worker(scenario_schema)
 
         rendered = Renderer()
 
         while True:
             try:
-                start = datetime.now()
                 try:
-                    data = await asyncio.wait_for(websocket.receive_json(), 0.5) # TODO: 
+                    data = await asyncio.wait_for(websocket.receive_json(), 0.1) # TODO: 
                     dir = data.get('direction')
                     time = data.get('timestamp')
                 except asyncio.TimeoutError:
@@ -118,26 +117,36 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                 # await session.refresh(scenario_db) could slow things down
 
                 move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=dir, timestamp=time)
-                state = worker.process_move(move)
+                state = sim_manager.process_move(move)
 
             
-                if state:
-                    start = datetime.now()
-                    plt_json= rendered.get_dict(state['state'])
-                    data = {
-                        'plt': plt_json,
-                        'time': move.timestamp
-                    }
+               
+                plt_json= rendered.get_dict(state['state'], state['map'])
+                data = {
+                    'plt': plt_json,
+                    'time': move.timestamp,
+                    'alive': state['status'] == "ACTIVE",
+                    'step': state['step']
+                }
+
+                if state['status'] == "ACTIVE":
                     await manager.broadcast_json(task_id, data)
-                    print(f"Broadcast time: {datetime.now() - start}")
-                else:
-                    print('Scenario Finished')
-                    await websocket.close(code=1008)
+
+                if state['status'] == "FINISHED":
+                    scenario_db.status = ScenarioStatus.FINISHED
+                    await session.commit()
+                    await manager.broadcast_json(task_id, data)
+                    await manager.close_all(task_id)
+                    return
+
+                if state['status'] == "TERMINATED":
+                    logging.info(f"Vehicle {vehicle_id} terminated in scenario {task_id}")
+                    await manager.send_personal_message(data, websocket)
+                    await manager.disconnect(task_id, websocket)
                     return
                 
             except WebSocketDisconnect:
-                manager.disconnect(task_id, websocket)
-                await websocket.close()
+                await manager.disconnect(task_id, websocket)
                 return
 
 

@@ -1,110 +1,113 @@
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
 
+/**
+ * Props:
+ *  vehicles: Array<{ id: string, pos: [number, number], heading?: number, color?: number }>
+ *  map: { [laneId]: { x: number[], y: number[] } } | null
+ *  metersToUnits?: number
+ *  background?: number
+ *  followId?: string | null
+ */
 export default function VehiclePlot({
-  vehiclePos,
-  heading,
+  vehicles = [],
+  map = null,
   metersToUnits = 1,
   background = 0x0d0f13,
-  trailLength = 200,
+  followId = null,
 }) {
   const mountRef = useRef(null);
-
-  // Three.js refs
-  const rendererRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
-  const vehicleRef = useRef(null);
+  const rendererRef = useRef(null);
   const frameRef = useRef(null);
 
-  // Live data refs (updated by React effect, read in RAF loop)
-  const posRef = useRef(vehiclePos);
-  const headingRef = useRef(heading);
+  const meshesRef = useRef(new Map()); // id -> { mesh, geo, mat }
+  const liveRef = useRef(new Map());   // id -> { pos, heading, color }
+  const mapGroupRef = useRef(null);    // THREE.Group for all lane lines
 
+  // Keep vehicle state fresh and upsert/remove meshes
   useEffect(() => {
-    posRef.current = vehiclePos;
-    headingRef.current = heading;
-  }, [vehiclePos, heading]);
+    const next = new Map();
+    for (const v of vehicles) next.set(v.id, { pos: v.pos, heading: v.heading, color: v.color });
+    liveRef.current = next;
 
-  // Init once
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const wantIds = new Set(vehicles.map(v => v.id));
+
+    // upsert vehicles
+    for (const v of vehicles) {
+      if (!meshesRef.current.has(v.id)) {
+        const geo = new THREE.BoxGeometry(4, 2, 1);
+        const mat = new THREE.MeshBasicMaterial({ color: v.color ?? 0xff3b30 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(0, 0, 1.0); // slightly above map lines/grid
+        scene.add(mesh);
+        meshesRef.current.set(v.id, { mesh, geo, mat });
+      } else if (v.color != null) {
+        const rec = meshesRef.current.get(v.id);
+        rec?.mat.color.setHex(v.color);
+      }
+    }
+
+    // remove stale
+    for (const [id, rec] of meshesRef.current.entries()) {
+      if (!wantIds.has(id)) {
+        scene.remove(rec.mesh);
+        rec.geo.dispose();
+        rec.mat.dispose();
+        meshesRef.current.delete(id);
+      }
+    }
+  }, [vehicles]);
+
+  // Init three.js once (IMPORTANT: do NOT depend on `map` here)
   useEffect(() => {
     const mount = mountRef.current;
     const width = mount?.clientWidth || 600;
     const height = mount?.clientHeight || 400;
 
-    // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(background);
 
-    // Camera (orthographic, top-down)
-    const viewSize = 60; // world units visible vertically
     const aspect = width / height;
+    const viewSize = 60;
     const camera = new THREE.OrthographicCamera(
-      -viewSize * aspect,
-      viewSize * aspect,
-      viewSize,
-      -viewSize,
-      0.1,
-      1000
+      -viewSize * aspect, viewSize * aspect, viewSize, -viewSize, 0.1, 1000
     );
     camera.position.set(0, 0, 100);
     camera.lookAt(0, 0, 0);
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(width, height);
 
-    // Grid (XY plane)
-    const grid = new THREE.GridHelper(400, 40, 0x555555, 0x2a2a2a);
-    grid.rotation.x = Math.PI / 2; // default grid is XZ; rotate to XY
+    mount.innerHTML = "";
+    mount.appendChild(renderer.domElement);
+
+    // Optional grid
+    const grid = new THREE.GridHelper(400, 40, 0x444444, 0x222222);
+    grid.rotation.x = Math.PI / 2;
+    // Keep grid from occluding
+    grid.renderOrder = 0;
     scene.add(grid);
 
-    // Axes helper (X=red, Y=green, Z=blue)
-    const axes = new THREE.AxesHelper(20);
-    scene.add(axes);
+    // Group to hold map lines
+    const mapGroup = new THREE.Group();
+    mapGroup.renderOrder = 1;
+    scene.add(mapGroup);
 
-    // Vehicle mesh
-    const carLength = 4;
-    const carWidth = 2;
-    const carThickness = 1;
-    const vehicleGeo = new THREE.BoxGeometry(carLength, carWidth, carThickness);
-    const vehicleMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
-    const vehicle = new THREE.Mesh(vehicleGeo, vehicleMat);
-    vehicle.position.set(0, 0, 0.5);
-    scene.add(vehicle);
+    sceneRef.current = scene;
+    cameraRef.current = camera;
+    rendererRef.current = renderer;
+    mapGroupRef.current = mapGroup;
 
-    // Direction indicator
-    const nose = new THREE.ArrowHelper(
-      new THREE.Vector3(1, 0, 0),
-      new THREE.Vector3(0, 0, 0.6),
-      carLength * 0.75,
-      0xffffff,
-      0.8,
-      0.4
-    );
-    vehicle.add(nose);
-
-    // Trail
-    const maxTrail = Math.max(10, trailLength);
-    const trailPositions = new Float32Array(maxTrail * 3);
-    const trailGeo = new THREE.BufferGeometry();
-    trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPositions, 3));
-    const trailMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9 });
-    const trail = new THREE.Line(trailGeo, trailMat);
-    scene.add(trail);
-    let trailCount = 0;
-
-    // Mount
-    if (mount) {
-      mount.innerHTML = "";
-      mount.appendChild(renderer.domElement);
-    }
-
-    // Resize
+    // Resize handling
     const onResize = () => {
-      const w = (mount && mount.clientWidth) || width;
-      const h = (mount && mount.clientHeight) || height;
+      const w = mount.clientWidth || width;
+      const h = mount.clientHeight || height;
       const asp = w / h;
       camera.left = -viewSize * asp;
       camera.right = viewSize * asp;
@@ -115,82 +118,75 @@ export default function VehiclePlot({
     };
     window.addEventListener("resize", onResize);
 
-    // Animate
+    // Animation loop
     const animate = () => {
-      const [x, y] = posRef.current;
-      const sx = x * metersToUnits;
-      const sy = y * metersToUnits;
-
-      vehicle.position.set(sx, sy, 0.5);
-      if (headingRef.current !== undefined) {
-        vehicle.rotation.z = headingRef.current;
+      for (const [id, state] of liveRef.current.entries()) {
+        const rec = meshesRef.current.get(id);
+        if (!rec) continue;
+        const [x, y] = state.pos;
+        rec.mesh.position.set(x * metersToUnits, y * metersToUnits, 1.0);
+        if (state.heading !== undefined) rec.mesh.rotation.z = state.heading;
       }
 
-      // Trail (FIFO)
-      if (trailCount < maxTrail) {
-        trailPositions[trailCount * 3 + 0] = sx;
-        trailPositions[trailCount * 3 + 1] = sy;
-        trailPositions[trailCount * 3 + 2] = 0.4;
-        trailCount++;
-      } else {
-        trailPositions.copyWithin(0, 3, maxTrail * 3);
-        trailPositions[(maxTrail - 1) * 3 + 0] = sx;
-        trailPositions[(maxTrail - 1) * 3 + 1] = sy;
-        trailPositions[(maxTrail - 1) * 3 + 2] = 0.4;
+      // Camera follow
+      if (followId && meshesRef.current.has(followId)) {
+        const rec = meshesRef.current.get(followId);
+        if (rec) {
+          camera.position.x = rec.mesh.position.x;
+          camera.position.y = rec.mesh.position.y;
+          camera.updateMatrixWorld();
+        }
       }
-      trailGeo.setDrawRange(0, Math.min(trailCount, maxTrail));
-      trailGeo.attributes.position.needsUpdate = true;
 
       renderer.render(scene, camera);
       frameRef.current = requestAnimationFrame(animate);
     };
     frameRef.current = requestAnimationFrame(animate);
 
-    // Save refs
-    sceneRef.current = scene;
-    cameraRef.current = camera;
-    rendererRef.current = renderer;
-    vehicleRef.current = vehicle;
-
     // Cleanup
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       window.removeEventListener("resize", onResize);
 
-      trailGeo.dispose();
-      trailMat.dispose();
-      vehicleGeo.dispose();
-      vehicleMat.dispose();
+      // Dispose vehicle meshes
+      for (const [, rec] of meshesRef.current.entries()) {
+        scene.remove(rec.mesh);
+        rec.geo.dispose();
+        rec.mat.dispose();
+      }
+      meshesRef.current.clear();
 
-      renderer.dispose();
-      if (renderer.domElement && renderer.domElement.parentNode) {
-        renderer.domElement.parentNode.removeChild(renderer.domElement);
+      // Dispose map lines
+      if (mapGroupRef.current) {
+        mapGroupRef.current.children.forEach((obj) => {
+          const line = obj; // THREE.Line
+          if (line.geometry) line.geometry.dispose();
+          if (line.material) line.material.dispose();
+        });
+        scene.remove(mapGroupRef.current);
+        mapGroupRef.current = null;
       }
 
-      scene.clear();
-      sceneRef.current = null;
-      cameraRef.current = null;
-      rendererRef.current = null;
-      vehicleRef.current = null;
+      renderer.dispose();
+      if (renderer.domElement.parentNode) {
+        renderer.domElement.parentNode.removeChild(renderer.domElement);
+      }
     };
-  }, [background, metersToUnits, trailLength]);
+  }, [background, metersToUnits, followId]); // <- removed `map`
 
-  // Optional: follow camera
+  // Draw the map once (or when metersToUnits changes)
   useEffect(() => {
-    const camera = cameraRef.current;
-    const vehicle = vehicleRef.current;
-    if (!camera || !vehicle) return;
+    if (!map || !mapGroupRef.current) return;
+    // Clear any previous lines if you want to redraw on scale change
+    mapGroupRef.current.children.forEach((obj) => {
+      const line = obj;
+      if (line.geometry) line.geometry.dispose();
+      if (line.material) line.material.dispose();
+    });
+    mapGroupRef.current.clear();
 
-    const follow = false; // set true to follow
-    if (!follow) return;
-
-    const id = setInterval(() => {
-      camera.position.x = vehicle.position.x;
-      camera.position.y = vehicle.position.y;
-      camera.updateMatrixWorld();
-    }, 50);
-    return () => clearInterval(id);
-  }, []);
+    drawMap(map, mapGroupRef.current, metersToUnits);
+  }, [map, metersToUnits]);
 
   return (
     <div
@@ -204,4 +200,25 @@ export default function VehiclePlot({
       }}
     />
   );
+}
+
+// --- helpers ---
+function drawMap(mapObj, group, metersToUnits) {
+  // mapObj: { [laneId]: { x: number[], y: number[] } }
+  for (const lane of Object.values(mapObj)) {
+    const pts = lane.x.map((x, i) =>
+      new THREE.Vector3(x * metersToUnits, lane.y[i] * metersToUnits, 0.01)
+    );
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false, // <- keep lines from occluding cars
+      // depthTest: false, // (optional) if you still see flicker/occlusion
+    });
+    const line = new THREE.Line(geo, mat);
+    line.renderOrder = 1; // render before vehicles (vehicles set z=1 anyway)
+    group.add(line);
+  }
 }
