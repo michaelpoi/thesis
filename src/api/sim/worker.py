@@ -4,10 +4,13 @@ from datetime import datetime
 from sim.logger import Logger
 from schemas.results import Move
 from sim.move_converter import MoveConverter
+from sim.utils import get_termination_reason
 import numpy as np
 import logging
 
 from metadrive.envs import MetaDriveEnv
+from metadrive.type import MetaDriveType
+from metadrive.obs.top_down_obs_impl import  LaneGraphics
 
 
 
@@ -20,6 +23,7 @@ class Worker:
         self.current_step = 0
         self.agent_ids = {}
         self.logger = Logger(self.scenario.id)
+        self.rendered_map = None
         self.pipe = pipe
 
     
@@ -82,6 +86,80 @@ class Worker:
             lanes[ind]['y'] = list(ys)
 
         return lanes
+    
+    def render_map(self, md_map):
+        """
+        Convert MetaDrive map to a minimal, styled JSON for the web renderer.
+        Output schema:
+        {
+        "lane_width": <float>,
+        "features": [
+            { "kind": "lane" | "road_line" | "boundary_line",
+            "polyline": [[x,y], ...],
+            "style": { "width": <m> }                # for lanes
+            # or
+            "style": { "color": "#FFFFFF|#FFD400",
+                        "pattern": "solid|dashed",
+                        "line_width": <m> }           # for lines
+            },
+            ...
+        ]
+        }
+    """
+        line_sample_interval = 2
+        all_feats = md_map.get_map_features(line_sample_interval)
+
+        # lane width & stripe width
+        lane_width = float(md_map.config.get("lane_width", 3.5))
+        try:
+            from metadrive.component.map.base_map import LaneGraphics
+            stripe_width = float(getattr(LaneGraphics, "STRIPE_WIDTH", 0.15))
+        except Exception:
+            stripe_width = 0.15
+
+        def color_hex(is_yellow: bool) -> str:
+            return "#FFD400" if is_yellow else "#FFFFFF"
+
+        out_map = {
+            "lane_width": lane_width,
+            "features": []
+        }
+
+        for _, obj in all_feats.items():
+            md_type = obj.get("type")
+            poly = obj.get("polyline", [])
+            if poly is None or len(poly) < 2:
+                continue
+
+            # keep MetaDrive (x,y) order; cast to float
+            poly_xy = [[float(x), float(y)] for (x, y) in poly]
+
+            if MetaDriveType.is_lane(md_type):
+                out_map["features"].append({
+                    "kind": "lane",
+                    "polyline": poly_xy,
+                    "style": { "width": lane_width }
+                })
+
+            elif MetaDriveType.is_road_line(md_type) or MetaDriveType.is_road_boundary_line(md_type):
+                is_yellow = MetaDriveType.is_yellow_line(md_type)
+                is_solid  = MetaDriveType.is_solid_line(md_type)
+                out_map["features"].append({
+                    "kind": "road_line" if MetaDriveType.is_road_line(md_type) else "boundary_line",
+                    "polyline": poly_xy,
+                    "style": {
+                        "color": color_hex(is_yellow),
+                        "pattern": "solid" if is_solid else "dashed",
+                        "line_width": stripe_width
+                    }
+                })
+
+            # else: ignore other types
+
+        logging.info(f"Rendered map for scenario {self.scenario.id}: {out_map}")
+        return out_map
+
+    
 
 
 
@@ -108,6 +186,8 @@ class Worker:
         for human, agent_id in zip(self.humans, self.env.agents.keys()):
             self.agent_ids[human.id] = agent_id
 
+        self.rendered_map = self.render_map(self.env.current_map)
+
 
 
     def setup_vehicle(self):
@@ -127,7 +207,7 @@ class Worker:
             "scenario_id": self.scenario.id,
             "status": status,
             "step": self.current_step,
-            "map": self.get_map(),
+            "map": self.rendered_map,
             "state": state
         }
 
@@ -154,17 +234,22 @@ class Worker:
             self.pipe.send(response)
     
 
-    def process_finish(self, state, status="FINISHED"):
+    def process_finish(self, state):
         logging.info(f"Scenario {self.scenario.id} finished at step {self.current_step}")
 
-        state = self.get_json(state, status=status)
-
-        if status == "FINISHED":
-            self.logger.save()
-            self.env.close()
+        state = self.get_json(state, status="FINISHED")
+        self.logger.save()
+        self.env.close()
 
         return state
-        # TODO: Could be refactored
+        
+
+    def process_termination(self, state, agent_id, info):
+        state = self.get_json(state, status="TERMINATED")
+        reason = get_termination_reason(info.get(agent_id, {}))
+        state['reason'] = reason
+        logging.info(f"Scenario {self.scenario.id}: agent {agent_id} terminated at step {self.current_step} due to {reason}")
+        return state
 
 
 
@@ -209,8 +294,7 @@ class Worker:
             logging.warning(f"Agent {ego_agent_id} done")
             # if ego_agent_id in self.agent_ids.values():
             #     del self.agent_ids[ego_agent_id]
-            return self.process_finish(state, "TERMINATED"), True
-            
+            return self.process_termination(state, ego_agent_id, info), True
 
         self.current_step += 1
 

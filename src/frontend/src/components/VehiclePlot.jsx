@@ -4,7 +4,21 @@ import * as THREE from "three";
 /**
  * Props:
  *  vehicles: Array<{ id: string, pos: [number, number], heading?: number, color?: number }>
- *  map: { [laneId]: { x: number[], y: number[] } } | null
+ *  map: {
+ *    lane_width?: number,
+ *    features?: Array<{
+ *      kind: "lane" | "road_line" | "boundary_line",
+ *      polyline: [number, number][],
+ *      style?: {
+ *        // lanes
+ *        width?: number,
+ *        // lines
+ *        color?: string,               // e.g. "#FFFFFF" or "#FFD400"
+ *        pattern?: "solid" | "dashed",
+ *        line_width?: number
+ *      }
+ *    }>
+ *  } | null
  *  metersToUnits?: number
  *  background?: number
  *  followId?: string | null
@@ -24,7 +38,7 @@ export default function VehiclePlot({
 
   const meshesRef = useRef(new Map()); // id -> { mesh, geo, mat }
   const liveRef = useRef(new Map());   // id -> { pos, heading, color }
-  const mapGroupRef = useRef(null);    // THREE.Group for all lane lines
+  const mapGroupRef = useRef(null);    // THREE.Group for all lane/line primitives
 
   // Keep vehicle state fresh and upsert/remove meshes
   useEffect(() => {
@@ -43,7 +57,7 @@ export default function VehiclePlot({
         const geo = new THREE.BoxGeometry(4, 2, 1);
         const mat = new THREE.MeshBasicMaterial({ color: v.color ?? 0xff3b30 });
         const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(0, 0, 1.0); // slightly above map lines/grid
+        mesh.position.set(0, 0, 1.0); // above map/grid
         scene.add(mesh);
         meshesRef.current.set(v.id, { mesh, geo, mat });
       } else if (v.color != null) {
@@ -63,7 +77,7 @@ export default function VehiclePlot({
     }
   }, [vehicles]);
 
-  // Init three.js once (IMPORTANT: do NOT depend on `map` here)
+  // Init three.js once (do NOT depend on `map` here)
   useEffect(() => {
     const mount = mountRef.current;
     const width = mount?.clientWidth || 600;
@@ -90,11 +104,10 @@ export default function VehiclePlot({
     // Optional grid
     const grid = new THREE.GridHelper(400, 40, 0x444444, 0x222222);
     grid.rotation.x = Math.PI / 2;
-    // Keep grid from occluding
     grid.renderOrder = 0;
     scene.add(grid);
 
-    // Group to hold map lines
+    // Group to hold map primitives
     const mapGroup = new THREE.Group();
     mapGroup.renderOrder = 1;
     scene.add(mapGroup);
@@ -156,12 +169,11 @@ export default function VehiclePlot({
       }
       meshesRef.current.clear();
 
-      // Dispose map lines
+      // Dispose map primitives
       if (mapGroupRef.current) {
         mapGroupRef.current.children.forEach((obj) => {
-          const line = obj; // THREE.Line
-          if (line.geometry) line.geometry.dispose();
-          if (line.material) line.material.dispose();
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) obj.material.dispose();
         });
         scene.remove(mapGroupRef.current);
         mapGroupRef.current = null;
@@ -172,20 +184,20 @@ export default function VehiclePlot({
         renderer.domElement.parentNode.removeChild(renderer.domElement);
       }
     };
-  }, [background, metersToUnits, followId]); // <- removed `map`
+  }, [background, metersToUnits, followId]);
 
-  // Draw the map once (or when metersToUnits changes)
+  // Draw the NEW map format once (or when metersToUnits changes)
   useEffect(() => {
     if (!map || !mapGroupRef.current) return;
-    // Clear any previous lines if you want to redraw on scale change
+
+    // Clear previous
     mapGroupRef.current.children.forEach((obj) => {
-      const line = obj;
-      if (line.geometry) line.geometry.dispose();
-      if (line.material) line.material.dispose();
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
     });
     mapGroupRef.current.clear();
 
-    drawMap(map, mapGroupRef.current, metersToUnits);
+    drawRichMap(map, mapGroupRef.current, metersToUnits);
   }, [map, metersToUnits]);
 
   return (
@@ -202,23 +214,66 @@ export default function VehiclePlot({
   );
 }
 
-// --- helpers ---
-function drawMap(mapObj, group, metersToUnits) {
-  // mapObj: { [laneId]: { x: number[], y: number[] } }
-  for (const lane of Object.values(mapObj)) {
-    const pts = lane.x.map((x, i) =>
-      new THREE.Vector3(x * metersToUnits, lane.y[i] * metersToUnits, 0.01)
+// --- helpers for NEW map format ---
+function drawRichMap(mapObj, group, metersToUnits) {
+  const features = mapObj?.features || [];
+  const defaultLaneColor = 0x9aa0a6; // neutral lane hint
+
+  for (const f of features) {
+    const pts = (f.polyline || []).map(([x, y]) =>
+      new THREE.Vector3(x * metersToUnits, y * metersToUnits, 0.02)
     );
+    if (pts.length < 2) continue;
+
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
-    const mat = new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.9,
-      depthWrite: false, // <- keep lines from occluding cars
-      // depthTest: false, // (optional) if you still see flicker/occlusion
-    });
-    const line = new THREE.Line(geo, mat);
-    line.renderOrder = 1; // render before vehicles (vehicles set z=1 anyway)
-    group.add(line);
+
+    if (f.kind === "lane") {
+      // For now: draw as a thin neutral line (you can extrude a ribbon later)
+      const mat = new THREE.LineBasicMaterial({
+        color: defaultLaneColor,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false,
+      });
+      const line = new THREE.Line(geo, mat);
+      line.renderOrder = 1;
+      group.add(line);
+      continue;
+    }
+
+    // road_line / boundary_line
+    const colorHex = f.style?.color || "#FFFFFF";
+    const color = new THREE.Color(colorHex);
+    const pattern = f.style?.pattern || "solid";
+
+    if (pattern === "dashed") {
+      // dashed: needs LineDashedMaterial + computeLineDistances
+      const dashSize = 1.0 * metersToUnits; // tune as needed
+      const gapSize = 1.0 * metersToUnits;
+      const mat = new THREE.LineDashedMaterial({
+        color,
+        transparent: true,
+        opacity: 0.95,
+        dashSize,
+        gapSize,
+        depthWrite: false,
+      });
+      const line = new THREE.Line(geo, mat);
+      // IMPORTANT for dashed lines:
+      line.computeLineDistances();
+      line.renderOrder = 2;
+      group.add(line);
+    } else {
+      // solid
+      const mat = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
+      const line = new THREE.Line(geo, mat);
+      line.renderOrder = 2;
+      group.add(line);
+    }
   }
 }

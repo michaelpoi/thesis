@@ -9,8 +9,9 @@ class ConnectionManager:
         self.clients[scenario_id].append(websocket)
 
     async def disconnect(self, scenario_id: int, websocket):
-        await websocket.close(code=1008)
         self.clients[scenario_id].remove(websocket)
+        await websocket.close(code=1008)
+        
 
     async def send_personal_message(self, data: dict, websocket):
         await websocket.send_json(data)
@@ -20,10 +21,14 @@ class ConnectionManager:
             await connection.send_text(message)
 
     async def broadcast_json(self, scenario_id: int, data: dict):
-        for connection in self.clients.get(scenario_id, []):
-            await connection.send_json(data)
+        connections = self.clients.get(scenario_id, [])
+        for connection in connections[:]: # iterate over a copy
+            try:
+                await connection.send_json(data)
+            except Exception as e:
+                connections.remove(connection)
 
     async def close_all(self, scenario_id: int):
         for connection in self.clients.get(scenario_id, []):
-            await connection.close()
+            await connection.close(code=1008)
         self.clients[scenario_id] = []

@@ -9,9 +9,21 @@ const Scenario = () => {
   const ws = useRef(null);
 
   const [vehicles, setVehicles] = useState([]);
-  const [map, setMap] = useState(null);   // 👈 store the map here (once)
+  const [map, setMap] = useState(null);
   const [ping, setPing] = useState(0);
   const [step, setStep] = useState(0);
+  const [reason, setReason] = useState("");
+
+  // ---- keep latest values in refs so handlers can read them ----
+  const vehiclesRef = useRef(vehicles);
+  const mapRef = useRef(map);
+  const stepRef = useRef(step);
+  const reasonRef = useRef(reason);
+
+  // useEffect(() => { vehiclesRef.current = vehicles; }, [vehicles]);
+  // useEffect(() => { mapRef.current = map; }, [map]);
+  // useEffect(() => { stepRef.current = step; }, [step]);
+  // useEffect(() => { reasonRef.current = reason; }, [reason]);
 
   const handleKeyDown = (e) => {
     switch (e.which) {
@@ -29,6 +41,19 @@ const Scenario = () => {
     }
   };
 
+  const goResult = () => {
+    navigate(`/result/${task.id}/`, {
+      replace: true,
+      state: {
+        reason: (reasonRef.current) || "Unknown",
+        vehicles:  vehiclesRef.current,
+        map: mapRef.current,
+        step: stepRef.current,
+        followId: `agent${usedVehicle - 1}`,
+      },
+    });
+  };
+
   useEffect(() => {
     const socket = new WebSocket(
       `ws://127.0.0.1/api/tasks/ws/${task.id}/${usedVehicle}/`,
@@ -39,28 +64,41 @@ const Scenario = () => {
     socket.onmessage = (event) => {
       try {
         const raw = JSON.parse(event.data);
-        const alive = raw.alive
-        console.log(alive)
-        const plt = raw.plt ?? raw; // your payload uses { plt: { positions, map }, time }
+        const plt = raw.plt ?? raw;
 
-        // Vehicles from positions:
+
+        if (raw.alive === false) {
+          reasonRef.current = plt.reason || "Unknown";
+          setReason(plt.reason || "Unknown");
+          goResult();
+          socket.close(1000, "Scenario ended");
+          return;
+        }
+
+        // Update vehicles
         if (plt?.positions) {
           const nextVehicles = Object.entries(plt.positions).map(([id, agent]) => ({
             id,
             pos: agent.position,
-            heading: agent.heading, // keep simple; or compute from velocity if you want
+            heading: agent.heading ?? 0,
             color: agent.is_human ? 0xff3b30 : 0x2ecc71,
           }));
+          vehiclesRef.current = nextVehicles;
           setVehicles(nextVehicles);
         }
 
-        // Map only once (first time it appears)
+        // Map once
         if (plt?.map && Object.keys(plt.map).length) {
-          setMap((prev) => (prev ? prev : plt.map));
+          mapRef.current = plt.map;
+          setMap((prev) => prev || plt.map);
         }
 
         if (raw.time) setPing(Date.now() - raw.time);
-        setStep(raw.step);
+        stepRef.current = raw.step ?? stepRef.current;
+        if (raw.step != null) setStep(raw.step);
+
+        // If scenario ended, navigate using the freshest data.
+        
       } catch (err) {
         console.error("WS parse error:", err);
       }
@@ -69,11 +107,19 @@ const Scenario = () => {
     socket.onerror = () => navigate("/", { replace: true });
 
     socket.onclose = (event) => {
+      // Use the last known snapshot from refs
       switch (event.code) {
-        case 1000: navigate(`/result/${task.id}/`, { replace: true }); break;
-        case 4001: navigate(`/login`, { replace: true }); break;
-        case 1008: navigate(`/result/${task.id}/`, { replace: true }); break;
-        default:  navigate("/", { replace: true });
+        case 4001:
+          navigate(`/login`, { replace: true });
+          break;
+        case 1008:
+          goResult();
+          break;
+        case 1000:
+          goResult();
+          break;
+        default:
+          goResult();
       }
     };
 
@@ -98,9 +144,9 @@ const Scenario = () => {
 
       <VehiclePlot
         vehicles={vehicles}
-        map={map}                 // 👈 pass the map here
+        map={map}
         metersToUnits={1}
-        followId="agent0"
+        followId={`agent0`}
       />
     </div>
   );
