@@ -27,6 +27,10 @@ Pre-created user credentials are:
 
 `password`: `admin`
 
+`username`: `user1`
+
+`password`: `user1`
+
 ## Swagger
 
 To see available endpoints and test them you can use Swagger UI.
