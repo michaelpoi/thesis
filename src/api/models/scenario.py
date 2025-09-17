@@ -1,5 +1,5 @@
 from models.base import Base
-from sqlalchemy import Column, Integer, String, ForeignKey, Float, Enum
+from sqlalchemy import Column, Integer, String, ForeignKey, Float, Enum, Boolean
 from sqlalchemy.orm import relationship
 import enum
 
@@ -23,6 +23,7 @@ class Scenario(Base):
     map_id = Column(Integer, ForeignKey('map.id'), nullable=False)
     map = relationship('Map')
     status = Column(Enum(ScenarioStatus), nullable=False, default=ScenarioStatus.CREATED)
+    is_offline = Column(Boolean)
     # map = Column(String, nullable=False)
 
 class Map(Base):

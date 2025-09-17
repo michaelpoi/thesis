@@ -1,5 +1,5 @@
 from typing import List
-import asyncio
+import json
 from fastapi import APIRouter
 from fastapi.responses import Response
 
@@ -10,6 +10,8 @@ from database import async_session
 from db.scenario_repository import ScenarioRepository
 from queues.queue import queue
 from db.offline_repository import OfflineScheduler
+from sim.manager import offline_manager
+from plot.renderer import Renderer
 
 router = APIRouter(
     prefix="/offline",
@@ -22,20 +24,28 @@ async def init_scenario(scenario_id: int):
         scenario_db = await ScenarioRepository.get_scenario(session, scenario_id)
 
         scenario = SScenario.model_validate(scenario_db)
-        await queue.send_init(scenario, mtype='offline')
+        offline_manager.register_worker(scenario)
+        # await queue.send_init(scenario, mtype='offline')
         return scenario
 
 
 @router.post('/preview')
 async def get_preview(move: OfflineScenarioPreview):
-    await queue.send_offline_move(move, is_preview=True)
-    gif_bytes = await queue.wait_for_image(scenario_id=move.scenario_id, pr=True)
+    move_json = move.model_dump()
+    move_json['is_preview'] = True
 
-    return Response(content=gif_bytes, media_type="image/gif")
+    state = offline_manager.process_move(move_json, scenario_id=move.scenario_id)
+
+    renderer = Renderer()
+
+    response = renderer.get_rendering_data(state)
+
+    return response
 
 
 @router.post('/submit')
 async def post_preview(preview: OfflineScenarioPreview):
+
     await OfflineScheduler.save_move(preview)
     # collected_move =  await OfflineScheduler.get_global_move(preview.scenario_id, preview.vehicle_id)
     total_steps = sum([prv.steps for prv in preview.moves])
@@ -43,14 +53,18 @@ async def post_preview(preview: OfflineScenarioPreview):
         "steps": total_steps,
         "moves":[
             preview.model_dump()
-        ]
+        ],
+        "is_preview": False
     }
-    print(collected_move)
+    
     if collected_move:
-        await queue.send_offline_sequence(collected_move, preview.scenario_id)
-    image_bytes = await queue.wait_for_image(scenario_id=preview.scenario_id)
-    if not image_bytes:
-        return Response(status_code=405)
+        state = offline_manager.process_move(collected_move, scenario_id=preview.scenario_id)
 
-    return Response(content=image_bytes, media_type="image/png")
+        renderer = Renderer()
+
+        response = renderer.get_rendering_data(state)
+   
+
+        return response
+    return {}
 

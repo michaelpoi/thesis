@@ -1,16 +1,18 @@
-from sim.worker import Worker
 from multiprocessing import Pipe, Process
+from sim.workers.offline_worker import OfflineWorker
+from sim.workers.worker import Worker
 
 class SimulationManager:
-    def __init__(self):
+    def __init__(self, WorkerClass):
         self.processes = {}
         self.pipes = {}
+        self.WorkerClass = WorkerClass
 
     def register_worker(self, scenario):
         if self.is_worker_registered(scenario.id):
             return
         par_conn, child_conn = Pipe()
-        worker = Worker(scenario, pipe=child_conn)
+        worker = self.WorkerClass(scenario, pipe=child_conn)
         self.pipes[scenario.id] = par_conn
 
         p = Process(target=worker.run)
@@ -35,9 +37,12 @@ class SimulationManager:
         del self.processes[scenario_id]
         del self.pipes[scenario_id]
     
-    def process_move(self, move):
+    def process_move(self, move, scenario_id=None):
 
-        pipe = self.get_pipe(move.scenario_id)
+        if not scenario_id:
+            scenario_id = getattr(move, 'scenario_id')
+
+        pipe = self.get_pipe(scenario_id)
 
         if not pipe:
             raise Exception("Scenario not registered")
@@ -47,10 +52,12 @@ class SimulationManager:
         response = pipe.recv()
 
         if response['status'] == "FINISHED":
-            self.unregister_worker(move.scenario_id)
+            self.unregister_worker(scenario_id)
 
         return response
     
-manager = SimulationManager()
+manager = SimulationManager(Worker)
+
+offline_manager = SimulationManager(OfflineWorker)
 
 

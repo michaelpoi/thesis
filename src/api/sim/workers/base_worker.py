@@ -1,20 +1,15 @@
-
-from datetime import datetime
-
 from sim.logger import Logger
-from schemas.results import Move
-from sim.move_converter import MoveConverter
+from abc import ABC, abstractmethod
 from sim.utils import get_termination_reason
 import numpy as np
 import logging
 
 from metadrive.envs import MetaDriveEnv
 from metadrive.type import MetaDriveType
-from metadrive.obs.top_down_obs_impl import  LaneGraphics
 
 
 
-class Worker:
+class BaseWorker(ABC):
     def __init__(self, scenario, pipe=None):
         self.scenario = scenario
         self.avs, self.humans = self.split_vehicles()
@@ -28,7 +23,7 @@ class Worker:
 
     
 
-    def generate_log_entry(self, move, info, tm, tr, to_transmit=False):
+    def generate_log_entry(self, info, tm, tr, to_transmit=False, move=None):
 
         agent_states = {
             agent_id: {
@@ -45,19 +40,24 @@ class Worker:
                 agent_states[av_id] = {
                     "position": av_obj.position.tolist(),
                     "velocity": av_obj.velocity.tolist(),
+                    "heading": av_obj.heading_theta,
                     "is_human": False
                 }
 
-        info = info if not to_transmit else {}
 
-        return self.logger.add_entry(
+        entry = self.logger.add_entry(
             step_num=self.current_step,
-            move_direction=move.direction,
+            move_direction=move.direction if move else 'N/A',
             agent_states=agent_states,
             termination=tm,
             truncation=tr,
             info=info
         )
+
+        if to_transmit:
+            entry_copy = {**entry}
+            entry_copy.pop('info')
+            return entry_copy
 
 
     def get_vehicle_config(self):
@@ -156,7 +156,6 @@ class Worker:
 
             # else: ignore other types
 
-        logging.info(f"Rendered map for scenario {self.scenario.id}: {out_map}")
         return out_map
 
     
@@ -208,6 +207,7 @@ class Worker:
             "status": status,
             "step": self.current_step,
             "map": self.rendered_map,
+            "agents_map": self.agent_ids,
             "state": state
         }
 
@@ -216,28 +216,29 @@ class Worker:
     
 
     def consume_moves(self):
-
-        # def recv(timeout=0.1):
-        #     if self.pipe.poll(timeout):
-        #         return self.pipe.recv()
-        #     return None
-
         active = True
         
-
         while active:
             move = self.pipe.recv()
 
-            # if not move:
-            #     move = Move(scenario_id=self.scenario.id, vehicle_id=None, direction="KEEP_ALIVE", timestamp=None)
             response, active = self.process_move(move)
             self.pipe.send(response)
+
+    def all_done(self, tm, tr):
+        return all(tm.get(agent_id, True) or tr.get(agent_id, True) for agent_id in self.agent_ids.values())
+    
+    def ego_done(self, tm, tr, ego_agent_id):
+        return ego_agent_id and (tm.get(ego_agent_id, True) or tr.get(ego_agent_id, True))
+    
+    def get_dones(self, tm, tr):
+        return [aid for aid in self.agent_ids.values() if tm.get(aid, True) or tr.get(aid, True)]
     
 
-    def process_finish(self, state):
+    def process_finish(self, state, agent_info):
         logging.info(f"Scenario {self.scenario.id} finished at step {self.current_step}")
 
         state = self.get_json(state, status="FINISHED")
+        state['reason'] = get_termination_reason(agent_info)
         self.logger.save()
         self.env.close()
 
@@ -253,57 +254,19 @@ class Worker:
 
 
 
-        
-    def process_move(self, move: Move):
-        move_arr = MoveConverter.convert(move)
-        if move.direction == "KEEP_ALIVE":
-            ego_agent_id = None
-        
-        else:
-            ego_agent_id = self.agent_ids[move.vehicle_id]
-
-        step = {}
-        for agent_id in self.agent_ids.values():
-            if agent_id and agent_id == ego_agent_id:
-                step[agent_id] = move_arr
-
-            else:
-                step[agent_id] = np.array([0,0])
-
-
-        
-            try:
-                obs, reward, tm, tr, info = self.env.step(step)
-            except KeyError:
-                logging.warning("Catched KeyError")
-                for agent_id in self.env.agents.keys():
-                    if agent_id not in step:            # Weird Bug
-                        step[agent_id] = np.array([0,0])
-
-                obs, reward, tm, tr, info = self.env.step(step)
-        
-
-        state = self.generate_log_entry(move, info, tm, tr, True)
-        state['time'] = move.timestamp
-
-
-        if all(tm.get(agent_id, True) or tr.get(agent_id, True) for agent_id in self.agent_ids.values()):  # Strange Bug with MetaDrive
-            logging.warning("All agents done")
-            return self.process_finish(state), False
-        elif ego_agent_id and (tm.get(ego_agent_id, True) or tr.get(ego_agent_id, True)):
-            logging.warning(f"Agent {ego_agent_id} done")
-            # if ego_agent_id in self.agent_ids.values():
-            #     del self.agent_ids[ego_agent_id]
-            return self.process_termination(state, ego_agent_id, info), True
-
-        self.current_step += 1
-
-        return self.get_json(state), True
     
     def run(self):
         self.setup_env()
         self.setup_vehicle()
         self.consume_moves()
+
+
+    @abstractmethod
+    def process_move(self, move) -> tuple[dict, bool]:
+        '''
+        Process move in a loop and return a tuple (response, active)
+        '''
+        raise NotImplementedError("Implement in subclass")
 
 
 

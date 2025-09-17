@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import VehiclePlot from "../components/VehiclePlot";
+import Speedometer from "../components/Speedometer";
 
 const Scenario = () => {
   const location = useLocation();
@@ -13,12 +14,15 @@ const Scenario = () => {
   const [ping, setPing] = useState(0);
   const [step, setStep] = useState(0);
   const [reason, setReason] = useState("");
+  const [egoAgentID, setEgoAgentID] = useState("");
 
   // ---- keep latest values in refs so handlers can read them ----
   const vehiclesRef = useRef(vehicles);
   const mapRef = useRef(map);
   const stepRef = useRef(step);
   const reasonRef = useRef(reason);
+  const egoAgentIDRef = useRef(egoAgentID);
+  const [currentSpeed, setCurrentSpeed] = useState(0);
 
   // useEffect(() => { vehiclesRef.current = vehicles; }, [vehicles]);
   // useEffect(() => { mapRef.current = map; }, [map]);
@@ -46,10 +50,10 @@ const Scenario = () => {
       replace: true,
       state: {
         reason: (reasonRef.current) || "Unknown",
-        vehicles:  vehiclesRef.current,
+        vehicles: vehiclesRef.current,
         map: mapRef.current,
         step: stepRef.current,
-        followId: `agent${usedVehicle - 1}`,
+        followId: egoAgentIDRef.current || 'agent0',
       },
     });
   };
@@ -66,10 +70,12 @@ const Scenario = () => {
         const raw = JSON.parse(event.data);
         const plt = raw.plt ?? raw;
 
+        console.log(raw.agents_map)
+
 
         if (raw.alive === false) {
-          reasonRef.current = plt.reason || "Unknown";
-          setReason(plt.reason || "Unknown");
+          reasonRef.current = raw.reason || "Unknown";
+          setReason(raw.reason || "Unknown");
           goResult();
           socket.close(1000, "Scenario ended");
           return;
@@ -81,10 +87,18 @@ const Scenario = () => {
             id,
             pos: agent.position,
             heading: agent.heading ?? 0,
-            color: agent.is_human ? 0xff3b30 : 0x2ecc71,
+            color: id == egoAgentIDRef.current ? 0xff3b30 : 0x2ecc71,
           }));
+
           vehiclesRef.current = nextVehicles;
           setVehicles(nextVehicles);
+          if (egoAgentIDRef.current) {
+            const velocityVector = plt.positions[egoAgentIDRef.current]?.velocity || [0, 0];
+            const v = Math.hypot(velocityVector[0], velocityVector[1]) * 3.6; // m/s to km/h
+            setCurrentSpeed(v);
+          };
+
+
         }
 
         // Map once
@@ -96,9 +110,13 @@ const Scenario = () => {
         if (raw.time) setPing(Date.now() - raw.time);
         stepRef.current = raw.step ?? stepRef.current;
         if (raw.step != null) setStep(raw.step);
-
+        if (!egoAgentID && raw.agents_map != null) {
+          const agentId = raw.agents_map[usedVehicle];
+          egoAgentIDRef.current = agentId;
+          setEgoAgentID(agentId);
+        }
         // If scenario ended, navigate using the freshest data.
-        
+
       } catch (err) {
         console.error("WS parse error:", err);
       }
@@ -142,11 +160,15 @@ const Scenario = () => {
       <h4>Current ping: {ping}</h4>
       <h4>Current step: {step}</h4>
 
+      <div style={{ display: "flex", justifyContent: "center", margin: "20px 0" }}>
+        <Speedometer speed={currentSpeed} max={200} units="km/h" />
+      </div>
+
       <VehiclePlot
         vehicles={vehicles}
         map={map}
         metersToUnits={1}
-        followId={`agent0`}
+        followId={egoAgentIDRef.current || 'agent0'}
       />
     </div>
   );

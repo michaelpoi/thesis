@@ -17,7 +17,7 @@ from queues.images import queue as img_queue
 from schemas.results import Move
 from auth.auth import get_current_user
 from routers.utils.connection import ConnectionManager
-from sim.worker import Worker
+from sim.workers.worker import Worker
 from sim.manager import manager as sim_manager
 
 from models.scenario import ScenarioStatus
@@ -121,13 +121,7 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
             
                
-                plt_json= rendered.get_dict(state['state'], state['map'])
-                data = {
-                    'plt': plt_json,
-                    'time': move.timestamp,
-                    'alive': state['status'] == "ACTIVE",
-                    'step': state['step']
-                }
+                data = rendered.get_rendering_data(state, move.timestamp)
 
                 if state['status'] == "ACTIVE":
                     await manager.broadcast_json(task_id, data)

@@ -1,28 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
 
-/**
- * Props:
- *  vehicles: Array<{ id: string, pos: [number, number], heading?: number, color?: number }>
- *  map: {
- *    lane_width?: number,
- *    features?: Array<{
- *      kind: "lane" | "road_line" | "boundary_line",
- *      polyline: [number, number][],
- *      style?: {
- *        // lanes
- *        width?: number,
- *        // lines
- *        color?: string,               // e.g. "#FFFFFF" or "#FFD400"
- *        pattern?: "solid" | "dashed",
- *        line_width?: number
- *      }
- *    }>
- *  } | null
- *  metersToUnits?: number
- *  background?: number
- *  followId?: string | null
- */
 export default function VehiclePlot({
   vehicles = [],
   map = null,
@@ -36,11 +14,17 @@ export default function VehiclePlot({
   const rendererRef = useRef(null);
   const frameRef = useRef(null);
 
-  const meshesRef = useRef(new Map()); // id -> { mesh, geo, mat }
-  const liveRef = useRef(new Map());   // id -> { pos, heading, color }
-  const mapGroupRef = useRef(null);    // THREE.Group for all lane/line primitives
+  const meshesRef = useRef(new Map());
+  const liveRef = useRef(new Map());
+  const mapGroupRef = useRef(null);
+  const followRef = useRef(followId);
 
-  // Keep vehicle state fresh and upsert/remove meshes
+  // keep the latest followId visible to the RAF loop
+  useEffect(() => {
+    followRef.current = followId;
+  }, [followId]);
+
+  // Keep live state fresh + upsert/remove meshes on vehicles change
   useEffect(() => {
     const next = new Map();
     for (const v of vehicles) next.set(v.id, { pos: v.pos, heading: v.heading, color: v.color });
@@ -51,13 +35,13 @@ export default function VehiclePlot({
 
     const wantIds = new Set(vehicles.map(v => v.id));
 
-    // upsert vehicles
+    // upsert
     for (const v of vehicles) {
       if (!meshesRef.current.has(v.id)) {
         const geo = new THREE.BoxGeometry(4, 2, 1);
         const mat = new THREE.MeshBasicMaterial({ color: v.color ?? 0xff3b30 });
         const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(0, 0, 1.0); // above map/grid
+        mesh.position.set(0, 0, 1.0);
         scene.add(mesh);
         meshesRef.current.set(v.id, { mesh, geo, mat });
       } else if (v.color != null) {
@@ -77,7 +61,7 @@ export default function VehiclePlot({
     }
   }, [vehicles]);
 
-  // Init three.js once (do NOT depend on `map` here)
+  // Init once — IMPORTANT: do NOT depend on followId here
   useEffect(() => {
     const mount = mountRef.current;
     const width = mount?.clientWidth || 600;
@@ -101,13 +85,13 @@ export default function VehiclePlot({
     mount.innerHTML = "";
     mount.appendChild(renderer.domElement);
 
-    // Optional grid
+    // grid
     const grid = new THREE.GridHelper(400, 40, 0x444444, 0x222222);
     grid.rotation.x = Math.PI / 2;
     grid.renderOrder = 0;
     scene.add(grid);
 
-    // Group to hold map primitives
+    // map group
     const mapGroup = new THREE.Group();
     mapGroup.renderOrder = 1;
     scene.add(mapGroup);
@@ -117,7 +101,23 @@ export default function VehiclePlot({
     rendererRef.current = renderer;
     mapGroupRef.current = mapGroup;
 
-    // Resize handling
+    // ⬅️ seed meshes for CURRENT vehicles so nothing disappears after a rebuild
+    for (const v of vehicles) {
+      if (!meshesRef.current.has(v.id)) {
+        const geo = new THREE.BoxGeometry(4, 2, 1);
+        const mat = new THREE.MeshBasicMaterial({ color: v.color ?? 0xff3b30 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(0, 0, 1.0);
+        scene.add(mesh);
+        meshesRef.current.set(v.id, { mesh, geo, mat });
+      }
+    }
+
+    // if map already present, draw it
+    if (map) {
+      drawRichMap(map, mapGroup, metersToUnits);
+    }
+
     const onResize = () => {
       const w = mount.clientWidth || width;
       const h = mount.clientHeight || height;
@@ -131,7 +131,6 @@ export default function VehiclePlot({
     };
     window.addEventListener("resize", onResize);
 
-    // Animation loop
     const animate = () => {
       for (const [id, state] of liveRef.current.entries()) {
         const rec = meshesRef.current.get(id);
@@ -141,14 +140,15 @@ export default function VehiclePlot({
         if (state.heading !== undefined) rec.mesh.rotation.z = state.heading;
       }
 
-      // Camera follow
-      if (followId && meshesRef.current.has(followId)) {
-        const rec = meshesRef.current.get(followId);
-        if (rec) {
-          camera.position.x = rec.mesh.position.x;
-          camera.position.y = rec.mesh.position.y;
-          camera.updateMatrixWorld();
-        }
+      // follow handled every frame (no rebuild)
+       const fid = followRef.current;
+       if (fid && meshesRef.current.has(fid)) {
+         const rec = meshesRef.current.get(fid);
+         if (rec) {
+           camera.position.x = rec.mesh.position.x;
+           camera.position.y = rec.mesh.position.y;
+           camera.updateMatrixWorld();
+         }
       }
 
       renderer.render(scene, camera);
@@ -156,12 +156,10 @@ export default function VehiclePlot({
     };
     frameRef.current = requestAnimationFrame(animate);
 
-    // Cleanup
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       window.removeEventListener("resize", onResize);
 
-      // Dispose vehicle meshes
       for (const [, rec] of meshesRef.current.entries()) {
         scene.remove(rec.mesh);
         rec.geo.dispose();
@@ -169,7 +167,6 @@ export default function VehiclePlot({
       }
       meshesRef.current.clear();
 
-      // Dispose map primitives
       if (mapGroupRef.current) {
         mapGroupRef.current.children.forEach((obj) => {
           if (obj.geometry) obj.geometry.dispose();
@@ -184,40 +181,32 @@ export default function VehiclePlot({
         renderer.domElement.parentNode.removeChild(renderer.domElement);
       }
     };
-  }, [background, metersToUnits, followId]);
+  }, [background, metersToUnits]); // <- followId REMOVED here
 
-  // Draw the NEW map format once (or when metersToUnits changes)
+  // Draw the map (or redraw on scale change)
   useEffect(() => {
     if (!map || !mapGroupRef.current) return;
-
-    // Clear previous
+    // clear and redraw
     mapGroupRef.current.children.forEach((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) obj.material.dispose();
     });
     mapGroupRef.current.clear();
-
     drawRichMap(map, mapGroupRef.current, metersToUnits);
   }, [map, metersToUnits]);
 
   return (
     <div
       ref={mountRef}
-      style={{
-        width: "100%",
-        height: 400,
-        borderRadius: 12,
-        overflow: "hidden",
-        background: "#0d0f13",
-      }}
+      style={{ width: "100%", height: 400, borderRadius: 12, overflow: "hidden", background: "#0d0f13" }}
     />
   );
 }
 
-// --- helpers for NEW map format ---
+// --- same drawRichMap helper you already have ---
 function drawRichMap(mapObj, group, metersToUnits) {
   const features = mapObj?.features || [];
-  const defaultLaneColor = 0x9aa0a6; // neutral lane hint
+  const defaultLaneColor = 0x9aa0a6;
 
   for (const f of features) {
     const pts = (f.polyline || []).map(([x, y]) =>
@@ -228,49 +217,27 @@ function drawRichMap(mapObj, group, metersToUnits) {
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
 
     if (f.kind === "lane") {
-      // For now: draw as a thin neutral line (you can extrude a ribbon later)
-      const mat = new THREE.LineBasicMaterial({
-        color: defaultLaneColor,
-        transparent: true,
-        opacity: 0.7,
-        depthWrite: false,
-      });
+      const mat = new THREE.LineBasicMaterial({ color: defaultLaneColor, transparent: true, opacity: 0.7, depthWrite: false });
       const line = new THREE.Line(geo, mat);
       line.renderOrder = 1;
       group.add(line);
       continue;
     }
 
-    // road_line / boundary_line
     const colorHex = f.style?.color || "#FFFFFF";
     const color = new THREE.Color(colorHex);
     const pattern = f.style?.pattern || "solid";
 
     if (pattern === "dashed") {
-      // dashed: needs LineDashedMaterial + computeLineDistances
-      const dashSize = 1.0 * metersToUnits; // tune as needed
+      const dashSize = 1.0 * metersToUnits;
       const gapSize = 1.0 * metersToUnits;
-      const mat = new THREE.LineDashedMaterial({
-        color,
-        transparent: true,
-        opacity: 0.95,
-        dashSize,
-        gapSize,
-        depthWrite: false,
-      });
+      const mat = new THREE.LineDashedMaterial({ color, transparent: true, opacity: 0.95, dashSize, gapSize, depthWrite: false });
       const line = new THREE.Line(geo, mat);
-      // IMPORTANT for dashed lines:
       line.computeLineDistances();
       line.renderOrder = 2;
       group.add(line);
     } else {
-      // solid
-      const mat = new THREE.LineBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.95,
-        depthWrite: false,
-      });
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false });
       const line = new THREE.Line(geo, mat);
       line.renderOrder = 2;
       group.add(line);

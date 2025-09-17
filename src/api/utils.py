@@ -10,3 +10,4 @@ async def create_admin():
 
 async def create_map():
     await MapRepository.create_map(label="line", layout="SSS")
+    await MapRepository.create_map(label="round", layout="SOS")

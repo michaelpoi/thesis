@@ -17,6 +17,7 @@ class ScenarioBase(BaseModel):
     steps: int
     vehicles: List[Vehicle]
     map: int
+    is_offline: bool = False
 
 
 class Scenario(ScenarioBase):

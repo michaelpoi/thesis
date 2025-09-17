@@ -1,6 +1,6 @@
 import React from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
-import VehiclePlot from "../components/VehiclePlot";
+import StaticVehiclePlot from "../components/StaticVehiclePlot";
 
 const Result = () => {
   const { id } = useParams();
@@ -18,9 +18,10 @@ const Result = () => {
     <div>
       <h1>Scenario {id} Result For {followId ?? "—"}</h1>
       <p>Terminated at step {step}</p>
+      {reason == 'arrive_dest' ? <h2 style={{ color: 'green' }}>Arrived at Destination</h2> : <span> {reason}</span>}
       <p>Reason: {reason}</p>
 
-      <VehiclePlot
+      <StaticVehiclePlot
         vehicles={vehicles}
         map={map}
         metersToUnits={1}
