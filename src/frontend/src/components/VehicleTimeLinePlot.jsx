@@ -1,20 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
-/**
- * VehicleTimelinePlot
- *
- * Props:
- *  frames: Array<Array<{ id: string|number, pos: [number, number], heading?: number, color?: number }>>
- *  map?: rich map (same schema you already use)
- *  metersToUnits?: number          // default 1
- *  background?: number             // default 0x0d0f13
- *  followId?: string|number|null   // camera follows this vehicle if present
- *  fps?: number                    // default 20
- *  loop?: boolean                  // default false
- *  startPaused?: boolean           // default false
- *  onPlayStateChange?: (isPlaying:boolean)=>void
- */
 export default function VehicleTimelinePlot({
   frames = [],
   map = null,
@@ -25,6 +11,7 @@ export default function VehicleTimelinePlot({
   loop = false,
   startPaused = false,
   onPlayStateChange,
+  startIndex = 0,              // index in the FULL timeline to start showing from
 }) {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
@@ -32,20 +19,42 @@ export default function VehicleTimelinePlot({
   const rendererRef = useRef(null);
   const frameReqRef = useRef(null);
 
-  // data & objects
   const mapGroupRef = useRef(null);
-  const meshesRef = useRef(new Map()); // id -> { mesh, geo, mat }
+  const meshesRef = useRef(new Map());
 
-  // playback
   const [isPlaying, setIsPlaying] = useState(!startPaused);
-  const [frameIndex, setFrameIndex] = useState(0);
+  const isPlayingRef = useRef(!startPaused);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
   const lastTickRef = useRef(0);
   const followRef = useRef(followId);
-
-  // keep latest followId for RAF loop
   useEffect(() => { followRef.current = followId; }, [followId]);
 
-  // init scene once
+  // 1) Normalize any server format to Array<Array<...>>
+  const framesNorm = useMemo(() => normalizeFrames(frames), [frames]);
+
+  // 2) Compute the effective start (clamped), and slice a visible segment
+  const effectiveStart = useMemo(() => {
+    if (!framesNorm.length) return 0;
+    const s = Number.isFinite(startIndex) ? Math.max(0, Math.min(startIndex, framesNorm.length - 1)) : 0;
+    return s;
+  }, [startIndex, framesNorm.length]);
+
+  const visibleFrames = useMemo(
+    () => framesNorm.slice(effectiveStart),
+    [framesNorm, effectiveStart]
+  );
+
+  // 3) Frame index is relative to the *visible* slice
+  const [frameIndex, setFrameIndex] = useState(0);
+
+  // If the startIndex or the visible slice changes, reset to the first visible frame
+  useEffect(() => {
+    setFrameIndex(0);
+    lastTickRef.current = performance.now();
+  }, [effectiveStart, visibleFrames.length]);
+
+  /* ---------- init scene (unchanged) ---------- */
   useEffect(() => {
     const mount = mountRef.current;
     const width = mount?.clientWidth || 600;
@@ -54,16 +63,10 @@ export default function VehicleTimelinePlot({
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(background);
 
-    // camera (ortho, top-down)
     const viewSize = 60;
     const aspect = width / height;
     const camera = new THREE.OrthographicCamera(
-      -viewSize * aspect,
-      viewSize * aspect,
-      viewSize,
-      -viewSize,
-      0.1,
-      1000
+      -viewSize * aspect, viewSize * aspect, viewSize, -viewSize, 0.1, 1000
     );
     camera.position.set(0, 0, 100);
     camera.lookAt(0, 0, 0);
@@ -75,13 +78,11 @@ export default function VehicleTimelinePlot({
     mount.innerHTML = "";
     mount.appendChild(renderer.domElement);
 
-    // grid (optional—kept for context)
     const grid = new THREE.GridHelper(400, 40, 0x444444, 0x222222);
     grid.rotation.x = Math.PI / 2;
     grid.renderOrder = 0;
     scene.add(grid);
 
-    // map group
     const mapGroup = new THREE.Group();
     mapGroup.renderOrder = 1;
     scene.add(mapGroup);
@@ -91,12 +92,8 @@ export default function VehicleTimelinePlot({
     rendererRef.current = renderer;
     mapGroupRef.current = mapGroup;
 
-    // initial map draw if provided
-    if (map) {
-      drawRichMap(map, mapGroup, metersToUnits);
-    }
+    if (map) drawRichMap(map, mapGroup, metersToUnits);
 
-    // resize
     const onResize = () => {
       const w = mount.clientWidth || width;
       const h = mount.clientHeight || height;
@@ -111,7 +108,6 @@ export default function VehicleTimelinePlot({
     };
     window.addEventListener("resize", onResize);
 
-    // start RAF
     lastTickRef.current = performance.now();
     frameReqRef.current = requestAnimationFrame(tick);
 
@@ -124,15 +120,19 @@ export default function VehicleTimelinePlot({
       const dt = now - lastTickRef.current;
       const frameDuration = 1000 / Math.max(1, fps);
 
-      if (isPlaying && dt >= frameDuration && frames.length > 0) {
+      if (isPlayingRef.current && dt >= frameDuration && visibleFrames.length > 0) {
         lastTickRef.current = now - (dt % frameDuration);
-        // advance frame
-        setFrameIndex((prev) => {
+        setFrameIndex(prev => {
           let next = prev + 1;
-          if (next >= frames.length) {
-            next = loop ? 0 : frames.length - 1;
+          if (next == visibleFrames.length - 1){
+            isPlayingRef.current = false;
+            setIsPlaying(false);
+            onPlayStateChange?.(false);
+          }
+          if (next >= visibleFrames.length) {
+            next = loop ? 0 : visibleFrames.length - 1;
             if (!loop) {
-              // auto-pause at the end if not looping
+              isPlayingRef.current = false;
               setIsPlaying(false);
               onPlayStateChange?.(false);
             }
@@ -141,7 +141,6 @@ export default function VehicleTimelinePlot({
         });
       }
 
-      // render current frame (without changing state again)
       renderOnce();
       frameReqRef.current = requestAnimationFrame(tick);
     }
@@ -150,7 +149,6 @@ export default function VehicleTimelinePlot({
       if (frameReqRef.current) cancelAnimationFrame(frameReqRef.current);
       window.removeEventListener("resize", onResize);
 
-      // dispose meshes
       for (const [, rec] of meshesRef.current.entries()) {
         scene.remove(rec.mesh);
         rec.geo.dispose();
@@ -158,7 +156,6 @@ export default function VehicleTimelinePlot({
       }
       meshesRef.current.clear();
 
-      // dispose map
       if (mapGroupRef.current) {
         mapGroupRef.current.children.forEach((obj) => {
           if (obj.geometry) obj.geometry.dispose();
@@ -173,13 +170,12 @@ export default function VehicleTimelinePlot({
         renderer.domElement.parentNode.removeChild(renderer.domElement);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [background, metersToUnits, fps, loop, startPaused, map]);
+    // include dependencies that actually change the loop timing/inputs
+  }, [background, metersToUnits, fps, loop, startPaused, map, visibleFrames.length]);
 
-  // redraw map if it changes (or scale changes)
+  /* ---------- redraw map on change ---------- */
   useEffect(() => {
     if (!mapGroupRef.current) return;
-    // clear & redraw
     mapGroupRef.current.children.forEach((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) obj.material.dispose();
@@ -189,13 +185,13 @@ export default function VehicleTimelinePlot({
     renderOnce();
   }, [map, metersToUnits]);
 
-  // whenever frameIndex changes, upsert/remove vehicle meshes & update transforms
+  /* ---------- render current visible frame ---------- */
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
 
-    const current = frames[frameIndex] || [];
-    const wantIds = new Set(current.map((v) => String(v.id)));
+    const current = visibleFrames[frameIndex] || [];
+    const wantIds = new Set(current.map(v => String(v.id)));
 
     // upsert
     for (const v of current) {
@@ -220,12 +216,12 @@ export default function VehicleTimelinePlot({
       }
     }
 
-    // update transforms/colors for current frame
+    // update transforms/colors
     for (const v of current) {
       const idKey = String(v.id);
       const rec = meshesRef.current.get(idKey);
       if (!rec) continue;
-      const [x, y] = v.pos;
+      const [x, y] = v.position;
       rec.mesh.position.set(x * metersToUnits, y * metersToUnits, 1.0);
       if (v.heading !== undefined) rec.mesh.rotation.z = v.heading;
       if (v.color != null) rec.mat.color.setHex(v.color);
@@ -233,8 +229,7 @@ export default function VehicleTimelinePlot({
 
     // follow camera
     if (followRef.current != null) {
-      const fidKey = String(followRef.current);
-      const rec = meshesRef.current.get(fidKey);
+      const rec = meshesRef.current.get(String(followRef.current));
       if (rec) {
         cameraRef.current.position.x = rec.mesh.position.x;
         cameraRef.current.position.y = rec.mesh.position.y;
@@ -243,15 +238,13 @@ export default function VehicleTimelinePlot({
     }
 
     renderOnce();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frameIndex, frames, metersToUnits, followId]);
+  }, [frameIndex, visibleFrames, metersToUnits, followId]);
 
-  // controls
   const togglePlay = () => {
     setIsPlaying((p) => {
       const next = !p;
+      isPlayingRef.current = next;
       onPlayStateChange?.(next);
-      // re-sync tick pacing
       lastTickRef.current = performance.now();
       return next;
     });
@@ -277,7 +270,6 @@ export default function VehicleTimelinePlot({
           background: "#0d0f13",
         }}
       />
-      {/* Controls */}
       <div
         style={{
           position: "absolute",
@@ -305,14 +297,46 @@ export default function VehicleTimelinePlot({
           {isPlaying ? "Pause" : "Play"}
         </button>
         <span style={{ color: "#e5e7eb", fontSize: 12 }}>
-          Frame {frames.length ? frameIndex + 1 : 0}/{frames.length || 0}
+          Frame {visibleFrames.length ? frameIndex + 1 : 0}/{visibleFrames.length || 0}
+        </span>
+        <span style={{ color: "#9aa0a6", fontSize: 12, marginLeft: 8 }}>
+          (showing from index {effectiveStart})
         </span>
       </div>
     </div>
   );
 }
 
-/* ---------- helper to draw your rich map ---------- */
+/* ---------- normalization helper ---------- */
+function normalizeFrames(input) {
+  if (!input) return [];
+
+  if (Array.isArray(input) && Array.isArray(input[0])) return input;
+
+  if (Array.isArray(input) && input.length && typeof input[0] === "object" && !Array.isArray(input[0])) {
+    return input.map(frameObj =>
+      Object.entries(frameObj).map(([id, v]) => ({
+        id,
+        position: v.position ?? [0, 0],
+        heading: v.heading,
+        color: v.is_human ? 0xff3b30 : 0x2ecc71,
+      }))
+    );
+  }
+
+  if (typeof input === "object" && !Array.isArray(input)) {
+    return [Object.entries(input).map(([id, v]) => ({
+      id,
+      position: v.position ?? [0, 0],
+      heading: v.heading,
+      color: v.is_human ? 0xff3b30 : 0x2ecc71,
+    }))];
+  }
+
+  return [];
+}
+
+/* ---------- map helper ---------- */
 function drawRichMap(mapObj, group, metersToUnits) {
   const features = mapObj?.features || [];
   const defaultLaneColor = 0x9aa0a6;

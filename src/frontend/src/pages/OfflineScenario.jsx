@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import './Offline.css';
 import StaticVehiclePlot from "../components/StaticVehiclePlot";
 import Speedometer from "../components/Speedometer";
+import VehicleTimelinePlot from "../components/VehicleTimeLinePlot";
 
 const OfflineScenario = () => {
     const [vehicles, setVehicles] = useState([]);
@@ -16,6 +17,12 @@ const OfflineScenario = () => {
     ]);
     const [currentSpeed, setCurrentSpeed] = useState(0);
     const [trajectory, setTrajectory] = useState([]);
+    const [frames, setFrames] = useState([]);
+    const [previewFrames, setPreviewFrames] = useState([]);
+    const [frameStartInd, setFrameStartInd] = useState(0);
+    const [startInd, setStartInd] = useState(0);
+    const [fps, setFps] = useState(20);
+    const [fpsMultiplyer, setFpsMultiplyer] = useState(1);
 
     const egoAgentIDRef = useRef(egoAgentID);
 
@@ -52,6 +59,18 @@ const OfflineScenario = () => {
         setNewMove({ ...newMove, [e.target.name]: e.target.value });
     };
 
+    const handleFrameStartChange = (e) => {
+        e.preventDefault();
+        setFrameStartInd(frames.length - startInd);
+
+        const fps = 20 * fpsMultiplyer;
+        setFps(fps);
+    }
+
+    const handleStartInd = (e) => {
+        setStartInd(e.target.value);
+    }
+
     const handleSubmit = (e) => {
         e.preventDefault();
         setMoves([...moves, {
@@ -84,9 +103,11 @@ const OfflineScenario = () => {
         const raw = await response.json();
         const plt = raw.plt ?? raw;
 
-        if(raw.trajectory){
-            setTrajectory(raw.trajectory);
+        if (raw.frames){
+            console.log(raw.frames)
+            setPreviewFrames(prev => [...prev, ...raw.frames])
         }
+
 
          if (plt?.positions) {
           const nextVehicles = Object.entries(plt.positions).map(([id, agent]) => ({
@@ -138,6 +159,11 @@ const OfflineScenario = () => {
           };
         }
 
+        if (raw.frames){
+            console.log(raw.frames)
+            setFrames(prev => [...prev, ...raw.frames])
+        }
+
         if (plt?.map && Object.keys(plt.map).length) {
         //   mapRef.current = plt.map;
           setMap((prev) => prev || plt.map);
@@ -157,21 +183,56 @@ const OfflineScenario = () => {
         <div>
             <div className="image-container">
                 <h1>Main Scenario</h1>
-                <StaticVehiclePlot
+                {/* <StaticVehiclePlot
                         vehicles={vehicles}
                         map={map}
                         metersToUnits={1}
                         followId={egoAgentIDRef.current}
-                      />
+                      /> */}
+
+                <VehicleTimelinePlot
+                            frames={frames}
+                            map={map}
+                            metersToUnits={1}
+                            followId={egoAgentIDRef.current}
+                            fps={fps}
+                            loop={true}
+                            startPaused={false}
+                            startIndex={frameStartInd}
+                />
                 
             <h1>Preview Scenario</h1>
-            <StaticVehiclePlot
-                        vehicles={previewVehicles}
-                        map={map}
-                        metersToUnits={1}
-                        followId={egoAgentIDRef.current}
-                        trajectory={trajectory}
-                      />
+            <VehicleTimelinePlot
+                            frames={previewFrames}
+                            map={map}
+                            metersToUnits={1}
+                            followId={egoAgentIDRef.current}
+                            fps={20}
+                            loop={true}
+                            startPaused={false}
+                />
+
+            
+
+            <form onSubmit={handleFrameStartChange}>
+                 <input
+                    type="number"
+                    name="start_ind"
+                    placeholder="Number of frames to show"
+                    value={startInd}
+                    onChange={handleStartInd}
+                />
+                <button type="submit">Apply</button>
+                <div style = {{ display: 'flex', justifyContent: 'space-between' }}>
+                    <button style = {{backgroundColor: fpsMultiplyer == 0.5 ? 'blue': 'grey'}} onClick={ () => setFpsMultiplyer(0.5)}>0.5x</button>
+                    <button style = {{backgroundColor: fpsMultiplyer == 1 ? 'blue': 'grey'}} onClick={() => setFpsMultiplyer(1)}>1x</button>
+                    <button style = {{backgroundColor: fpsMultiplyer == 2 ? 'blue': 'grey'}} onClick={() => setFpsMultiplyer(2)}>2x</button>
+                </div>
+                
+            </form>
+
+           
+
             </div>
             <button onClick={handlePreview}>Preview</button>
             <button onClick={handleMove}>Submit</button>

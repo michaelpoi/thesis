@@ -62,34 +62,42 @@ class Subworker:
 
 
     
-    def get_json(self, trajectory):
+    def get_json(self, frames):
         message_body = {
             "scenario_id": self.scenario.id,
             "status": "PREVIEW",
             "map": {},
             "state": self.state,
-            "trajectory": trajectory
+            "frames": frames
         }
 
         return message_body
+    
+    def get_agent_state(self, x, y, h):
+        return {
+            'agent0':{
+                "position": [x, y],
+                "heading": [h],
+                "is_human": True
+            }
+        }
     
 
 
 
     def process_move(self, move: OfflineScenarioPreview):
-        trajectory = []
+        frames = []
         for mv in move.moves:
             move_arr = [mv.steering, mv.acceleration]
             for s in range(mv.steps):
-                logging.info(f"Step {s}")
                 obj, reward, tm, tr, info = self.env.step(move_arr)
 
                 x, y = self.env.agent.position
-                trajectory.append([x, y])
-                logging.warning(info)
+                h = self.env.agent.heading_theta
+                frames.append(self.get_agent_state(x, y, h))
 
         
-        return self.get_json(trajectory)
+        return self.get_json(frames)
 
 
     def run(self, move, queue=None):

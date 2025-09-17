@@ -38,6 +38,7 @@ class OfflineWorker(BaseWorker):
 
     def process_move(self, data: dict):
         moves, steps = self.preprocessor(data)
+        frames = []
 
         flat = self.to_flat_view(moves)
         for step in range(steps):
@@ -48,6 +49,7 @@ class OfflineWorker(BaseWorker):
             obj, reward, tm, tr, info = self.env.step(move)
 
             state = self.generate_log_entry(info, tm, tr, True)
+            frames.append(self.get_agent_states())
 
 
             if self.all_done(tm, tr) or self.get_dones(tm, tr): # TEMP
@@ -58,7 +60,10 @@ class OfflineWorker(BaseWorker):
 
 
         self.current_step += 1
-        return self.get_json(state), True
+
+        response = self.get_json(state)
+        response['frames'] = frames
+        return response, True
     
 
     def get_preview(self, move):

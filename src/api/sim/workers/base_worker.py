@@ -21,10 +21,8 @@ class BaseWorker(ABC):
         self.rendered_map = None
         self.pipe = pipe
 
-    
 
-    def generate_log_entry(self, info, tm, tr, to_transmit=False, move=None):
-
+    def get_agent_states(self):
         agent_states = {
             agent_id: {
                 "position": self.env.engine.agents[agent_id].position.tolist(),
@@ -44,11 +42,17 @@ class BaseWorker(ABC):
                     "is_human": False
                 }
 
+        return agent_states
+
+
+    
+
+    def generate_log_entry(self, info, tm, tr, to_transmit=False, move=None):
 
         entry = self.logger.add_entry(
             step_num=self.current_step,
             move_direction=move.direction if move else 'N/A',
-            agent_states=agent_states,
+            agent_states=self.get_agent_states(),
             termination=tm,
             truncation=tr,
             info=info
