@@ -17,6 +17,7 @@ class ScenarioBase(BaseModel):
     steps: int
     vehicles: List[Vehicle]
     map: int
+    is_offline: bool = False
 
 
 class Scenario(ScenarioBase):
@@ -32,6 +33,7 @@ class Move(BaseModel):
     scenario_id: int
     vehicle_id: int
     direction: str
+    timestamp: Optional[int]
 
 class SimulationTask(BaseModel):
     id: int

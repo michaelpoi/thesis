@@ -1,86 +1,152 @@
 import React, { useEffect, useRef, useState } from "react";
-import {useLocation, useNavigate} from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import VehiclePlot from "../components/VehiclePlot";
+import Speedometer from "../components/Speedometer";
 
 const Scenario = () => {
   const location = useLocation();
-  const navigate = useNavigate()
-  const {task, usedVehicle} = location.state || {};
-  const ws = useRef(null); // Use useRef for WebSocket
-  const [imageSrc, setImageSrc] = useState(null);
+  const navigate = useNavigate();
+  const { task, usedVehicle } = location.state || {};
+  const ws = useRef(null);
 
-  console.log(usedVehicle)
+  const [vehicles, setVehicles] = useState([]);
+  const [map, setMap] = useState(null);
+  const [ping, setPing] = useState(0);
+  const [step, setStep] = useState(0);
+  const [reason, setReason] = useState("");
+  const [egoAgentID, setEgoAgentID] = useState("");
 
+  // ---- keep latest values in refs so handlers can read them ----
+  const vehiclesRef = useRef(vehicles);
+  const mapRef = useRef(map);
+  const stepRef = useRef(step);
+  const reasonRef = useRef(reason);
+  const egoAgentIDRef = useRef(egoAgentID);
+  const [currentSpeed, setCurrentSpeed] = useState(0);
+
+  // useEffect(() => { vehiclesRef.current = vehicles; }, [vehicles]);
+  // useEffect(() => { mapRef.current = map; }, [map]);
+  // useEffect(() => { stepRef.current = step; }, [step]);
+  // useEffect(() => { reasonRef.current = reason; }, [reason]);
 
   const handleKeyDown = (e) => {
-    switch (e.which){
-      case 87:
-        sendDirection("UP")
-        break;
-      case 68:
-        sendDirection("RIGHT")
-        break;
-      case 65:
-        sendDirection("LEFT")
-        break;
-      case 83:
-        sendDirection("DOWN")
-        break;
+    switch (e.which) {
+      case 87: sendDirection("UP"); break;
+      case 68: sendDirection("RIGHT"); break;
+      case 65: sendDirection("LEFT"); break;
+      case 83: sendDirection("DOWN"); break;
+      default: break;
     }
   };
 
   const sendDirection = (direction) => {
     if (ws.current) {
-      console.log(direction);
-      ws.current.send(direction);
+      ws.current.send(JSON.stringify({ direction, timestamp: Date.now() }));
     }
+  };
+
+  const goResult = () => {
+    navigate(`/result/${task.id}/`, {
+      replace: true,
+      state: {
+        reason: (reasonRef.current) || "Unknown",
+        vehicles: vehiclesRef.current,
+        map: mapRef.current,
+        step: stepRef.current,
+        followId: egoAgentIDRef.current || 'agent0',
+      },
+    });
   };
 
   useEffect(() => {
-    // Create WebSocket connection
-    const socket = new WebSocket(`ws://127.0.0.1/api/tasks/ws/${task.id}/${usedVehicle}/`, [localStorage.getItem('token')]);
-
-    ws.current = socket; // Store socket in ref
+    const socket = new WebSocket(
+      `ws://127.0.0.1/api/tasks/ws/${task.id}/${usedVehicle}/`,
+      [localStorage.getItem("token")]
+    );
+    ws.current = socket;
 
     socket.onmessage = (event) => {
-    try {
+      try {
+        const raw = JSON.parse(event.data);
+        const plt = raw.plt ?? raw;
 
-      const blob = new Blob([event.data], { type: "image/png" });
-      const url = URL.createObjectURL(blob); // Create an object URL
-      setImageSrc(url); // Set image source
-    } catch (error) {
-      console.error("Error processing WebSocket message:", error);
-    }
+        console.log(raw.agents_map)
 
-    socket.onerror = () => {
-      navigate('/', {replace: true})
-    }
+
+        if (raw.alive === false) {
+          reasonRef.current = raw.reason || "Unknown";
+          setReason(raw.reason || "Unknown");
+          goResult();
+          socket.close(1000, "Scenario ended");
+          return;
+        }
+
+        // Update vehicles
+        if (plt?.positions) {
+          const nextVehicles = Object.entries(plt.positions).map(([id, agent]) => ({
+            id,
+            pos: agent.position,
+            heading: agent.heading ?? 0,
+            color: id == egoAgentIDRef.current ? 0xff3b30 : 0x2ecc71,
+          }));
+
+          vehiclesRef.current = nextVehicles;
+          setVehicles(nextVehicles);
+          if (egoAgentIDRef.current) {
+            const velocityVector = plt.positions[egoAgentIDRef.current]?.velocity || [0, 0];
+            const v = Math.hypot(velocityVector[0], velocityVector[1]) * 3.6; // m/s to km/h
+            setCurrentSpeed(v);
+          };
+
+
+        }
+
+        // Map once
+        if (plt?.map && Object.keys(plt.map).length) {
+          mapRef.current = plt.map;
+          setMap((prev) => prev || plt.map);
+        }
+
+        if (raw.time) setPing(Date.now() - raw.time);
+        stepRef.current = raw.step ?? stepRef.current;
+        if (raw.step != null) setStep(raw.step);
+        if (!egoAgentID && raw.agents_map != null) {
+          const agentId = raw.agents_map[usedVehicle];
+          egoAgentIDRef.current = agentId;
+          setEgoAgentID(agentId);
+        }
+        // If scenario ended, navigate using the freshest data.
+
+      } catch (err) {
+        console.error("WS parse error:", err);
+      }
+    };
+
+    socket.onerror = () => navigate("/", { replace: true });
 
     socket.onclose = (event) => {
-      console.log(`websocket closed code: ${event.code}`)
-      navigate('/', {replace: true})
-      switch (event.code){
-        case 1000:
-          navigate(`/result/${task.id}/`, {replace: true});
-          break;
+      // Use the last known snapshot from refs
+      switch (event.code) {
         case 4001:
-          navigate(`/login`, {replace: true});
+          navigate(`/login`, { replace: true });
           break;
         case 1008:
-          navigate(`/result/${task.id}/`, {replace: true});
+          goResult();
           break;
+        case 1000:
+          goResult();
+          break;
+        default:
+          goResult();
       }
-    }
-  };
+    };
 
-    // Add keydown event listener
     document.addEventListener("keydown", handleKeyDown);
-
-    // Cleanup event listener and WebSocket connection on unmount
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       socket.close();
     };
-  }, [task.id, usedVehicle]); // Reconnect WebSocket when task or vehicle changes
+  }, [task.id, usedVehicle, navigate]);
 
   return (
     <div>
@@ -91,10 +157,19 @@ const Scenario = () => {
         <button onClick={() => sendDirection("LEFT")}>Left</button>
         <button onClick={() => sendDirection("RIGHT")}>Right</button>
       </div>
-      <div>
-        <h4>Messages:</h4>
-              {imageSrc ? <img src={imageSrc} alt="WebSocket Image" /> : <p>Waiting for image...</p>}
+      <h4>Current ping: {ping}</h4>
+      <h4>Current step: {step}</h4>
+
+      <div style={{ display: "flex", justifyContent: "center", margin: "20px 0" }}>
+        <Speedometer speed={currentSpeed} max={200} units="km/h" />
       </div>
+
+      <VehiclePlot
+        vehicles={vehicles}
+        map={map}
+        metersToUnits={1}
+        followId={egoAgentIDRef.current || 'agent0'}
+      />
     </div>
   );
 };

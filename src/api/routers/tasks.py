@@ -1,26 +1,27 @@
-import base64
+
 from typing import List
 import asyncio
-import io
-from fastapi.exceptions import HTTPException
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from fastapi import APIRouter, Depends
+import logging
 
 from db.scenario_repository import ScenarioRepository
+from datetime import datetime
 
-from models import scenario
-from models.scenario import Scenario, Vehicle, Map
+from models.scenario import Scenario, Vehicle
 from database import async_session
 from schemas.results import Scenario as SScenario, Vehicle as SVehicle, ScenarioBase as SScenarioAdd
 from sqlalchemy.future import select
 from queues.queue import queue
 from queues.images import queue as img_queue
-from sqlalchemy.orm import joinedload
 from schemas.results import Move
 from auth.auth import get_current_user
-from PIL import Image
+from routers.utils.connection import ConnectionManager
+from sim.workers.worker import Worker
+from sim.manager import manager as sim_manager
 
 from models.scenario import ScenarioStatus
+from plot.renderer import Renderer
 
 router = APIRouter(
     prefix='/tasks',
@@ -54,18 +55,20 @@ async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)
 async def list_all_tasks() -> List[SScenario]:
     return await ScenarioRepository.get_all()
 
-clients = {}
+manager = ConnectionManager()
+
+
 @router.websocket('/ws/{task_id}/{vehicle_id}/')
 async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
     token = websocket.headers.get('sec-websocket-protocol')
 
     try:
         user = await get_current_user(token)
-        print(f"Websocket user {user}")
+
 
     except Exception:
         await websocket.close(code=4001)
-    print(token)
+        return
 
     async with async_session() as session:
         scenario_db = await ScenarioRepository.get_scenario(session, task_id)
@@ -90,61 +93,55 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
         if vehicle.scenario_id != scenario_db.id:
             return await websocket.close()
+        
 
-        await websocket.accept(subprotocol=token)
+        await manager.connect(task_id, token, websocket)
 
-        if not task_id in clients:
-            clients[task_id] = []
 
-        clients[task_id].append(websocket)
+        # await queue.send_init(scenario_schema)
 
-        await queue.send_init(scenario_schema)
+        sim_manager.register_worker(scenario_schema)
+
+        rendered = Renderer()
 
         while True:
             try:
                 try:
-                    data = await asyncio.wait_for(websocket.receive_text(), 0.1)
+                    data = await asyncio.wait_for(websocket.receive_json(), 0.1) # TODO: 
+                    dir = data.get('direction')
+                    time = data.get('timestamp')
                 except asyncio.TimeoutError:
-                    data = "KEEP_ALIVE"
+                    time = None
+                    dir = "KEEP_ALIVE"
 
-                await session.refresh(scenario_db)
-                # if scenario_db.status == ScenarioStatus.FINISHED:
-                #     print("Scenario finished")
-                #     await websocket.close(code=1008)
+                # await session.refresh(scenario_db) could slow things down
 
-                move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=data)
-                print(move)
-                await queue.send_move(move)
-                try:
-                    current_frame = await asyncio.wait_for(img_queue.consume_results(task_id), 0.5)
-                except:
-                    print("Timed out")
-                    continue
+                move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=dir, timestamp=time)
+                state = sim_manager.process_move(move)
 
-                if not current_frame:
-                    continue
+            
+               
+                data = rendered.get_rendering_data(state, move.timestamp)
 
-                if current_frame['alive']:
-                    await websocket.send_bytes(current_frame['image'])
-                else:
-                    print('Scenario Finished')
-                    await websocket.close(code=1008)
-                # try:
-                #     image = Image.open(f"/app/{scenario_db.id}.png")
-                #     img_bytes = io.BytesIO()
-                #     image.save(img_bytes, format="PNG")  # Convert to PNG format
-                #     img_bytes.seek(0)  # Reset cursor to start of the file
-                #
-                #     # Send the image as bytes
-                #
-                #     # Send the JSON message
-                #     await websocket.send_bytes(img_bytes)
-                # except:
-                #     pass
+                if state['status'] == "ACTIVE":
+                    await manager.broadcast_json(task_id, data)
+
+                if state['status'] == "FINISHED":
+                    scenario_db.status = ScenarioStatus.FINISHED
+                    await session.commit()
+                    await manager.broadcast_json(task_id, data)
+                    await manager.close_all(task_id)
+                    return
+
+                if state['status'] == "TERMINATED":
+                    logging.info(f"Vehicle {vehicle_id} terminated in scenario {task_id}")
+                    await manager.send_personal_message(data, websocket)
+                    await manager.disconnect(task_id, websocket)
+                    return
+                
             except WebSocketDisconnect:
-                clients[task_id].remove(websocket)
-                #await websocket.close()
-                break
+                await manager.disconnect(task_id, websocket)
+                return
 
 
 from fastapi.responses import FileResponse

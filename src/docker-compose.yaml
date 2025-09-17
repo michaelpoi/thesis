@@ -10,26 +10,29 @@ services:
       - "8000:8000"
 
     depends_on:
-      - rabbitmq
+      # - rabbitmq
       - postgres
 
     environment:
       - db_host=postgres
       - rq_host=rabbitmq
 
+    volumes:
+      - ./api/simulation_logs:/app/logs
 
-  rabbitmq:
-    image: rabbitmq:4.0-management-alpine
-    container_name: "rabbitmq"
-    ports:
-      - "5672:5672"
-      - "15672:15672"
 
-    healthcheck:
-      test: [ "CMD", "rabbitmqctl", "status" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # rabbitmq:
+  #   image: rabbitmq:4.0-management-alpine
+  #   container_name: "rabbitmq"
+  #   ports:
+  #     - "5672:5672"
+  #     - "15672:15672"
+
+  #   healthcheck:
+  #     test: [ "CMD", "rabbitmqctl", "status" ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
 
   frontend:
@@ -50,22 +53,24 @@ services:
       - POSTGRES_PASSWORD=metasimulator
       - POSTGRES_DB=metasimulator
 
-  simulator:
-    build:
-      context: ./simulation
-      dockerfile: ./Dockerfile
+  # simulator:
+  #   build:
+  #     context: ./simulation
+  #     dockerfile: ./Dockerfile
 
-    container_name: simulator
+  #   container_name: simulator
 
-    depends_on:
-      - rabbitmq
-      - api
-    environment:
-      - rq_host=rabbitmq
-      - API_URL=http://api:8000/api
+  #   depends_on:
+  #     - rabbitmq
+  #     - api
+  #   environment:
+  #     - rq_host=rabbitmq
+  #     - API_URL=http://api:8000/api
 
-    volumes:
-      - ./simulation/logs:/app/logs
+  #   volumes:
+  #     - ./simulation/logs:/app/logs
+
+  #   restart: always
 
 
   nginx:

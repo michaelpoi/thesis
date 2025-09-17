@@ -3,6 +3,7 @@ import base64
 import io
 import json
 import os
+from datetime import datetime
 
 from logger import Logger
 from schemas import Move
@@ -57,7 +58,7 @@ class Worker:
                 routing_key=queue_name,
             )
 
-    def generate_log_entry(self, move, info, tm, tr):
+    def generate_log_entry(self, move, info, tm, tr, to_transmit=False):
 
         agent_states = {
             agent_id: {
@@ -76,7 +77,9 @@ class Worker:
                     "is_human": False
                 }
 
-        self.logger.add_entry(
+        info = info if not to_transmit else {}
+
+        return self.logger.add_entry(
             step_num=self.current_step,
             move_direction=move.direction,
             agent_states=agent_states,
@@ -109,6 +112,16 @@ class Worker:
                 humans.append(vehicle)
 
         return avs, humans
+    
+    def get_map(self):
+        lanes = {}
+        for ind, lane in enumerate(self.env.engine.current_map.road_network.get_all_lanes()):
+            xs, ys = zip(*lane.get_polyline())
+            lanes[ind] = {}
+            lanes[ind]['x'] = list(xs)
+            lanes[ind]['y'] = list(ys)
+
+        return lanes
 
 
 
@@ -155,15 +168,27 @@ class Worker:
         return base64.b64encode(gif_data).decode('utf-8')
 
 
-    async def send_frame(self, image_bytes):
+    # async def send_frame(self, image_bytes):
+    #     message_body = {
+    #         "scenario_id": self.scenario.id,
+    #         "status": "ACTIVE",
+    #         "step": self.current_step,
+    #         "image_bytes": base64.b64encode(image_bytes).decode("utf-8")  # Convert bytes to base64 string
+    #     }
+    #     message_data = json.dumps(message_body).encode("utf-8")
+    #     await self.send_message(self.results_queue_name, message_data)
+
+    async def send_json(self, state):
         message_body = {
             "scenario_id": self.scenario.id,
             "status": "ACTIVE",
             "step": self.current_step,
-            "image_bytes": base64.b64encode(image_bytes).decode("utf-8")  # Convert bytes to base64 string
+            "map": self.get_map(),
+            "state": state
         }
-        message_data = json.dumps(message_body).encode("utf-8")
-        await self.send_message(self.results_queue_name, message_data)
+        json_data = json.dumps(message_body, indent=2, default=self.logger.to_serializable).encode("utf-8")
+
+        await self.send_message(self.results_queue_name, json_data)
 
 
 
@@ -173,16 +198,19 @@ class Worker:
             "scenario_id": self.scenario.id,
             "status": "FINISHED",
             "reason": get_termination_reason(info),
-            "gif": self.generate_gif(),
+            # "gif": self.generate_gif(), Gif is not available when render is off
         }
         message_data = json.dumps(message_body).encode("utf-8")
         await self.send_message(self.results_queue_name, message_data)
         logging.warning(f"Shutting down worker {self.scenario.id}")
-        exit(0)
+        self.env.close()
+        loop = asyncio.get_event_loop()
+        loop.stop()
 
+        
     async def process_move(self, move: Move):
+        start = datetime.now()
         move_arr = MoveConverter.convert(move)
-        print(move)
         ego_agent_id = self.agent_ids[move.vehicle_id]
         step = {}
         for agent_id in self.agent_ids.values():
@@ -192,37 +220,21 @@ class Worker:
             else:
                 step[agent_id] = np.array([0,0])
 
-        print(step)
-        print(self.env.agent_manager.active_agents)
 
 
         obs, reward, tm, tr, info = self.env.step(step)
 
-        self.generate_log_entry(move, info, tm, tr)
+        state = self.generate_log_entry(move, info, tm, tr, True)
+        state['time'] = move.timestamp
 
-        logging.warning(tm)
-        logging.warning(tr)
 
         if tm['__all__'] or tr['__all__'] or tm['agent0'] or tr['agent0']:
             await self.process_finish(info)
 
-        image = self.env.render(mode='topdown',
-                                window=False,
-                                film_size = (1000, 1000),
-                                screen_size = (1000, 1000),
-                                camera_position=self.env.current_map.get_center_point(),
-                                screen_record=True,
-                                scaling=None,
-                                text={"episode step": self.env.engine.episode_step,
-                                      "move": move.direction,
-                                      "speed m/s":  round(self.env.engine.agents['agent0'].speed, 2)})
+        await self.send_json(state)
 
-        bytes_io = io.BytesIO()
-        img = Image.fromarray(image)
-        img.save(bytes_io, format="PNG")
-        image_bytes = bytes_io.getvalue()
+        logging.warning(f"Step time: {datetime.now() - start}")
 
-        await self.send_frame(image_bytes)
         self.current_step += 1
         return True
 
@@ -235,7 +247,7 @@ class Worker:
             async for message in queue:
                 async with message.process():
                     move_json = json.loads(message.body)
-                    print(move_json)
+
                     move = Move(**move_json)
                     await self.process_move(move)
 
@@ -257,7 +269,6 @@ class Worker:
         }
 
         res = requests.post(f"{os.getenv('API_URL')}/maps/{self.scenario.map.id}", files=files)
-        print(res.status_code)
 
         exit(0)
 
