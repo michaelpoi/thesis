@@ -1,5 +1,5 @@
 from models.base import Base
-from sqlalchemy import Column, Integer, ForeignKey, Boolean, String
+from sqlalchemy import Column, Integer, ForeignKey, Boolean, String, Float
 from sqlalchemy.orm import relationship
 
 
@@ -14,6 +14,7 @@ class OfflineScenarioMoveSequence(Base):
 
     moves = relationship('OfflineScenarioMove', back_populates='sequence')
     is_executed = Column(Boolean, default=False)
+    is_editable = Column(Boolean, default=False)
 
     def total_steps(self):
         return sum([move.steps for move in self.moves])
@@ -23,8 +24,8 @@ class OfflineScenarioMove(Base):
     __tablename__ = "offline_scenario_move"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    acceleration = Column(Integer)
-    steering = Column(Integer)
+    acceleration = Column(Float)
+    steering = Column(Float)
     steps = Column(Integer)
 
     sequence_id = Column(Integer, ForeignKey('offline_scenario_sequence.id'))

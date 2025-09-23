@@ -12,8 +12,6 @@ from models.scenario import Scenario, Vehicle
 from database import async_session
 from schemas.results import Scenario as SScenario, Vehicle as SVehicle, ScenarioBase as SScenarioAdd
 from sqlalchemy.future import select
-from queues.queue import queue
-from queues.images import queue as img_queue
 from schemas.results import Move
 from auth.auth import get_current_user
 from routers.utils.connection import ConnectionManager
@@ -98,7 +96,6 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
         await manager.connect(task_id, token, websocket)
 
 
-        # await queue.send_init(scenario_schema)
 
         sim_manager.register_worker(scenario_schema)
 

@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 from uvicorn import Config, Server
 from settings import settings
 from database import init_db, deinit_db
-from routers.tasks import router as tasks_router
+from routers.scenarios import router as tasks_router
 from routers.auth import router as auth_router
 from routers.maps import router as maps_router
 from routers.offline_scenarios import router as offline_router
 from utils import create_admin, create_map
+from db.offline_response import blob_adapter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,8 +22,8 @@ async def lifespan(app: FastAPI):
     await create_map()
     yield
     await deinit_db()
+    blob_adapter.clear_all()
 
-os.makedirs(settings.static_dir, exist_ok=True)
 app = FastAPI(
     title="My API",
     docs_url="/api/docs",
@@ -30,7 +31,6 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
-app.mount("/api/static", StaticFiles(directory=settings.static_folder), name="static")
 
 origins = [
     "http://localhost:3000",  # React app on localhost

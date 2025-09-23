@@ -6,13 +6,13 @@ from fastapi import APIRouter, UploadFile, File
 from schemas.maps import BaseMap as SAddMap, Map as SMap, NamedMap as SNamedMap
 from database import async_session
 from schemas.results import Scenario as SScenario
-from queues.queue import queue
 
 from models.scenario import Map
 from settings import settings
 from db.map_repository import MapRepository
 
 from models.scenario import ScenarioStatus
+from sim.manager import map_preview
 
 router = APIRouter(
     prefix='/maps',
@@ -35,13 +35,11 @@ async def create_map(smap: SNamedMap):
     map_db = await MapRepository.create_map(smap.label, smap.layout)
 
 
-    # Send preview map image signal
-    await queue_map_preview(map_db)
 
     return map_db
 
 
-async def queue_map_preview(map_db: Map):
+def queue_map_preview(map_db: Map):
 
     map_schema = Map(id = map_db.id, image=None, layout= map_db.layout)
 
@@ -56,7 +54,7 @@ async def queue_map_preview(map_db: Map):
                                 status=ScenarioStatus.FINISHED
                                 )
 
-    await queue.send_init(sample_scenario, "map")
+    return map_preview(sample_scenario)
 
 
 
@@ -81,21 +79,21 @@ async def preview_map(map_id: int):
                                 status=ScenarioStatus.FINISHED,
                                 map=Map(id=map_db.id, layout=map_db.layout, image=None),
                                 )
-    await queue.send_init(scenario=sample_scenario)
+    # await queue.send_init(scenario=sample_scenario)
 
     return
 
-@router.post("/{map_id}")
-async def upload_map_image(map_id: int, image: UploadFile = File(...)):
-    filename = f"{map_id}.png"
-    filepath = settings.static_dir / filename
+# @router.post("/{map_id}")
+# async def upload_map_image(map_id: int, image: UploadFile = File(...)):
+#     filename = f"{map_id}.png"
+#     filepath = settings.static_dir / filename
 
-    if os.path.exists(filepath):
-        os.remove(filepath)
+#     if os.path.exists(filepath):
+#         os.remove(filepath)
 
-    with open(filepath, "wb+") as f:
-        f.write(image.file.read())
+#     with open(filepath, "wb+") as f:
+#         f.write(image.file.read())
 
-    await MapRepository.set_map_image(map_id, filename)
+#     await MapRepository.set_map_image(map_id, filename)
 
-    return {"filename": filename}
+#     return {"filename": filename}
