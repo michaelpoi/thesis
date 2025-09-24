@@ -242,7 +242,9 @@ class BaseWorker(ABC):
         logging.info(f"Scenario {self.scenario.id} finished at step {self.current_step}")
 
         state = self.get_json(state, status="FINISHED")
-        state['reason'] = get_termination_reason(agent_info)
+        if agent_info:
+            state['reason'] = get_termination_reason(agent_info)
+            
         self.logger.save()
         self.env.close()
 

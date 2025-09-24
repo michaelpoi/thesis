@@ -7,7 +7,7 @@ class BaseMap(BaseModel):
 
 class Map(BaseMap):
     id: int
-    image: Optional[str]
+    blob: Optional[dict] = None
 
     class Config:
         from_attributes = True

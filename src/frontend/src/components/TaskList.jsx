@@ -67,11 +67,11 @@ const TaskList = () => {
         navigate(`offline/${task.id}/${usedVehicle}`)
     }
 
-    const onProcced = (task) =>{
-        if (task.is_offline){
+    const onProcced = (task) => {
+        if (task.is_offline) {
             onOffline(task)
         }
-        else{
+        else {
             onConnect(task)
         }
     }
@@ -92,6 +92,43 @@ const TaskList = () => {
 
     }
 
+    const downloadLog = async (id) => {
+        try {
+            const res = await fetch(`${process.env.REACT_APP_API_URL}/logs/${id}`, {
+                method: "GET",
+                headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, // no Content-Type on GET
+            });
+
+            if (res.status === 401) {
+                navigate("/logout", { replace: true });
+                return;
+            }
+            if (!res.ok) {
+                console.error("Failed to download log:", res.status);
+                return;
+            }
+
+            // Optional filename from server
+            const cd = res.headers.get("Content-Disposition") || "";
+            const match = cd.match(/filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i);
+            const filename = decodeURIComponent(match?.[1] || match?.[2] || `scenario_${id}.json`);
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("Download error:", err);
+        }
+    };
+
+
     return (
         <div>
             <label>
@@ -104,10 +141,14 @@ const TaskList = () => {
 
             <div className="scenario_list">
                 {tasks.map((task) => (
-                    <div key={task.id} className="scenario_card" style={{borderLeft: task.is_offline ? "5px solid #007BFF" : "5px solid #bf2b2eff"}}>
+                    <div key={task.id} className="scenario_card" style={{ borderLeft: task.is_offline ? "5px solid #007BFF" : "5px solid #bf2b2eff" }}>
                         {task.is_offline ? "Offline " : "Real-Time "}Scenario #{task.id} (vehicles {task.vehicles.map((vehicle) => (`${vehicle.id} `))})
                         {task.status === 'FINISHED' ?
-                            <button className="connect_button" onClick={() => onExamine(task)}>Examine</button>
+                            // <button className="connect_button" onClick={() => onExamine(task)}>Examine</button>
+                            <div className="finished-container">
+                                <span>FINISHED</span>
+                                <button onClick={() => downloadLog(task.id)}>Export</button>
+                            </div>
                             :
                             <button className="connect_button" onClick={() => onProcced(task)}>Connect</button>
                         }
@@ -134,7 +175,7 @@ const TaskList = () => {
                                 <button onClick={() => setNewScenarioOffline(true)} style={{ backgroundColor: 'grey', color: 'white' }}>Offline</button>
                             </>
                         }
-                        
+
                     </div>
                     <div className="form_content">
                         <label>

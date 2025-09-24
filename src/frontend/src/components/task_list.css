@@ -11,6 +11,13 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
+.finished-container {
+  display: flex;
+  justify-content: center;
+  align-items: center; /* vertically align */
+  gap: 10px; /* space between text and button */
+}
+
 .scenario_card {
   display: flex;
   justify-content: space-between;
