@@ -4,7 +4,7 @@ from settings import settings
 
 async def create_admin():
     try:
-        await UserRepository.create_user("admin", "admin")
+        await UserRepository.create_user("admin", "admin", True)
         await UserRepository.create_user("user1", "user1")
     except ValueError:
         pass

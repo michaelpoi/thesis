@@ -2,11 +2,11 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from auth.schemas import Token, TokenData, AddUser, User as SUser
+from auth.schemas import Token, User as SUser
 from auth.auth import authenticate_user, create_access_token
 from fastapi.security import OAuth2PasswordRequestForm
-from db.user_repository import UserRepository
-from auth.auth import get_current_user
+
+from auth.auth import get_current_user, get_current_admin
 
 from settings import settings
 
@@ -31,16 +31,12 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
 
     return Token(access_token=access_token, token_type="bearer")
 
-@router.post("/register", response_model=SUser)
-async def register(user: AddUser):
-    try:
-        user =  await UserRepository.create_user(user.username, user.password)
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    return user
 
 @router.get("/me", response_model=SUser)
+async def me(user=Depends(get_current_admin)):
+    return user
+
+@router.get("/user", response_model=SUser)
 async def me(user=Depends(get_current_user)):
     return user

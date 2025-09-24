@@ -13,6 +13,7 @@ from routers.auth import router as auth_router
 from routers.maps import router as maps_router
 from routers.offline_scenarios import router as offline_router
 from routers.logs import router as logs_router
+from routers.users import router as users_router
 from utils import create_admin, create_map
 from cache.offline import blob_adapter
 from cache.maps import map_cache
@@ -56,6 +57,7 @@ app.include_router(auth_router, prefix='/api')
 app.include_router(maps_router, prefix='/api')
 app.include_router(offline_router, prefix='/api')
 app.include_router(logs_router, prefix='/api')
+app.include_router(users_router, prefix='/api')
 
 async def main():
     config = Config(app=app,host=settings.host, port=settings.port, reload=settings.debug)

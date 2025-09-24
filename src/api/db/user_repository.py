@@ -11,6 +11,25 @@ from auth.schemas import User as SUser, UserInDB
 class UserRepository:
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
+    @classmethod
+    def _build_schema(cls, user):
+        return SUser(id=user.id, 
+                    is_admin= user.is_admin,
+                    username=user.username)
+
+
+    @classmethod
+    async def get_all(cls):
+        async with async_session() as session:
+            queryset = await session.execute(
+                select(User)
+            )
+
+        users = queryset.unique().scalars().all()
+
+        return [cls._build_schema(u) for u in users]
+
     @classmethod
     async def get_user_by_id(cls, user_id:int) -> Optional[SUser]:
         async with async_session() as session:
@@ -21,7 +40,7 @@ class UserRepository:
         if not user:
             return None
 
-        return SUser(id=user.id, username=user.username)
+        return cls._build_schema(user)
 
     @classmethod
     async def get_user_by_username(cls, username:str) -> Optional[SUser]:
@@ -33,7 +52,7 @@ class UserRepository:
         if not user:
             return None
 
-        return SUser(id=user.id, username=user.username)
+        return cls._build_schema(user)
 
     @classmethod
     async def get_db_user(cls, username:str) -> UserInDB | None:
@@ -55,7 +74,7 @@ class UserRepository:
 
 
     @classmethod
-    async def create_user(cls, username:str, password:str) -> SUser:
+    async def create_user(cls, username:str, password:str, is_admin:bool=False) -> SUser:
         if await cls.get_user_by_username(username):
             raise ValueError("User already exists")
 
@@ -63,12 +82,12 @@ class UserRepository:
         hashed_password = cls.hash_password(password)
 
         async with async_session() as session:
-            db_user = User(username=username, hashed_password=hashed_password)
+            db_user = User(username=username, hashed_password=hashed_password, is_admin=is_admin)
             session.add(db_user)
             await session.commit()
             await session.refresh(db_user)
 
-        return SUser(id=db_user.id, username=db_user.username)
+        return cls._build_schema(db_user)
 
 
     @classmethod

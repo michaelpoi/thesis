@@ -55,6 +55,10 @@ async def list_all_tasks() -> List[SScenario]:
 
 manager = ConnectionManager()
 
+@router.get('/mine')
+async def users_tasks(user=Depends(get_current_user)):
+    return await ScenarioRepository.get_users_scenario(user.id)
+
 
 @router.websocket('/ws/{task_id}/{vehicle_id}/')
 async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
@@ -141,10 +145,6 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
                 return
 
 
-from fastapi.responses import FileResponse
-@router.get('/image/')
-def get_image():
-    return FileResponse('/app/output.png', media_type='image/png')
 
 
 

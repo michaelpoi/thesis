@@ -12,6 +12,7 @@ import MapCreator from "../pages/MapCreator";
 import Result from "../pages/Result";
 import OfflineScenario from "../pages/OfflineScenario";
 import OfflineResult from "../pages/OfflineResult";
+import Root from "../pages/Root";
 
 const Routes = () => {
   const { token } = useAuth();
@@ -31,6 +32,10 @@ const Routes = () => {
       children: [
         {
           path: "/",
+          element: <Root/>,
+        },
+        {
+          path: "/admin",
           element: <Home/>,
         },
         {

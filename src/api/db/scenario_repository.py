@@ -2,12 +2,30 @@ from typing import List
 
 from database import async_session
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from models.scenario import Scenario, Map, Vehicle
 from sqlalchemy.orm import joinedload
 
 
 class ScenarioRepository:
+
+    @classmethod
+    async def get_users_scenario(cls, user_id):
+            async with async_session() as session:
+                stmt = (
+                    select(Scenario)
+                    .options(
+                        joinedload(Scenario.vehicles),
+                        joinedload(Scenario.map),
+                    )
+                    .join(Vehicle, Vehicle.scenario_id == Scenario.id)
+                    .where(
+                        Vehicle.assigned_user_id == user_id                       
+                    )
+                )
+                result = await session.execute(stmt)
+                return result.unique().scalars().all()
+
     @classmethod
     async def get_all(cls):
         async with async_session() as session:

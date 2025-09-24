@@ -57,4 +57,18 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 
 
+async def get_current_admin(user=Depends(get_current_user)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="You have to be admin to perform this action",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if not user.is_admin:
+        raise credentials_exception
+    
+    return user
+
+
+
+
 

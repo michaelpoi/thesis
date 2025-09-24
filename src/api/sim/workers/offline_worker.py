@@ -41,6 +41,8 @@ class OfflineWorker(BaseWorker):
         frames = []
 
         flat = self.to_flat_view(moves)
+
+        state = None
         for step in range(steps):
             move = {}
             for agent_id in self.agent_ids.values():
@@ -65,7 +67,10 @@ class OfflineWorker(BaseWorker):
 
             self.current_step += 1
 
-        response = self.get_json(state)
+        if state:
+            response = self.get_json(state)
+        else:
+            response = {}
         response['frames'] = frames
         return response, True
     
