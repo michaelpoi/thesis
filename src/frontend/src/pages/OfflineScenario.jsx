@@ -19,6 +19,7 @@ const OfflineScenario = () => {
     const [startInd, setStartInd] = useState(0);
     const [fps, setFps] = useState(20);
     const [fpsMultiplyer, setFpsMultiplyer] = useState(1);
+    const framesRef = useRef([]);
 
     const egoAgentIDRef = useRef(egoAgentID);
     const pingTurnRef = useRef(0);
@@ -34,6 +35,19 @@ const OfflineScenario = () => {
     const [newMove, setNewMove] = useState({ steps: 100, steering: "", acceleration: "" });
     const navigate = useNavigate();
     const { id, vehicle_id } = useParams();
+
+    const goResult = () => {
+    navigate(`/offline_result/${id}/`, {
+      replace: true,
+      state: {
+        reason: "Unknown",
+        frames: framesRef.current,
+        map: map,
+        step: step,
+        followId: egoAgentIDRef.current || 'agent0',
+      },
+    });
+  };
 
     const setMoveByAlias = (alias) => {
         switch (alias) {
@@ -167,6 +181,11 @@ const OfflineScenario = () => {
 
         if (raw.frames) {
             setFrames((prev) => [...prev, ...raw.frames]);
+            framesRef.current = [...framesRef.current, ...raw.frames];
+        }
+
+        if (!raw.alive){
+            goResult();
         }
 
         if (plt?.map && Object.keys(plt.map).length) {

@@ -49,17 +49,21 @@ class OfflineWorker(BaseWorker):
             obj, reward, tm, tr, info = self.env.step(move)
 
             state = self.generate_log_entry(info, tm, tr, True)
-            frames.append(self.get_agent_states())
+            
 
 
             if self.all_done(tm, tr) or self.get_dones(tm, tr): # TEMP
-                return self.process_finish(info), False
+                finish_state = self.process_finish(state, None) # Replace None later
+                finish_state['frames'] = frames
+                return finish_state, False
             elif dones := self.get_dones(tm, tr):
                 for done in dones:
                     self.process_termination(state, done, info)
 
+            frames.append(self.get_agent_states())
 
-        self.current_step += 1
+
+            self.current_step += 1
 
         response = self.get_json(state)
         response['frames'] = frames
@@ -92,6 +96,9 @@ class OfflineWorker(BaseWorker):
     
 
     def consume_moves(self): #Overidden to handle preview
+
+        self.logger.prefix = 'offline'
+        
         active = True
         
         while active:

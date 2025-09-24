@@ -1,14 +1,9 @@
-import json
-import shutil
 from pathlib import Path
 from settings import settings
+from cache.base import FileSystemCache
 
-class OfflineBlobAdapter:
-    def __init__(self, dir: Path):
-        self.dir = Path(dir)
-        self.dir.mkdir(parents=True, exist_ok=True)
-        self.loaded: dict[int, int] = {}  # scenario_id -> latest turn
-
+class OfflineBlobAdapter(FileSystemCache):
+    
     def get_filename(self, scenario_id: int, turn: int) -> Path:
         return self.dir / str(scenario_id) / f"{turn}.json"
 
@@ -18,8 +13,7 @@ class OfflineBlobAdapter:
 
         filename = self.get_filename(scenario_id, turn)
         filename.parent.mkdir(parents=True, exist_ok=True)
-        with open(filename, "w") as f:
-            json.dump(response, f)
+        self.write(filename, response)
 
         return turn  # useful if caller wants it
 
@@ -34,8 +28,7 @@ class OfflineBlobAdapter:
         filename = self.get_filename(scenario_id, turn)
         if not filename.exists():
             return None
-        with open(filename, "r") as f:
-            return json.load(f)
+        return self.read(filename)
 
     def get_latest(self, scenario_id: int) -> tuple[dict, int] | None:
         latest = self.latest_turn(scenario_id)
@@ -44,10 +37,5 @@ class OfflineBlobAdapter:
         blob = self.get_by_turn(scenario_id, latest)
         return (blob, latest)
 
-    def clear_all(self):
-        if self.dir.exists():
-            shutil.rmtree(self.dir)
-        self.dir.mkdir(parents=True, exist_ok=True)
-        self.loaded.clear()
 
 blob_adapter = OfflineBlobAdapter(settings.blobs_dir)

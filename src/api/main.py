@@ -12,8 +12,10 @@ from routers.scenarios import router as tasks_router
 from routers.auth import router as auth_router
 from routers.maps import router as maps_router
 from routers.offline_scenarios import router as offline_router
+from routers.logs import router as logs_router
 from utils import create_admin, create_map
-from db.offline_response import blob_adapter
+from cache.offline import blob_adapter
+from cache.maps import map_cache
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,6 +25,7 @@ async def lifespan(app: FastAPI):
     yield
     await deinit_db()
     blob_adapter.clear_all()
+    map_cache.clear_all()
 
 app = FastAPI(
     title="My API",
@@ -45,12 +48,14 @@ app.add_middleware(
     allow_credentials=True,  # Allow cookies/auth credentials
     allow_methods=["*"],  # Allowed HTTP methods
     allow_headers=["*"],  # Allowed HTTP headers
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(tasks_router, prefix='/api')
 app.include_router(auth_router, prefix='/api')
 app.include_router(maps_router, prefix='/api')
 app.include_router(offline_router, prefix='/api')
+app.include_router(logs_router, prefix='/api')
 
 async def main():
     config = Config(app=app,host=settings.host, port=settings.port, reload=settings.debug)

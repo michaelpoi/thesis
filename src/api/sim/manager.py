@@ -2,6 +2,7 @@ from multiprocessing import Pipe, Process
 from sim.workers.offline_worker import OfflineWorker
 from sim.workers.worker import Worker
 from sim.workers.map_preview import MapPreviewWorker
+from cache.maps import map_cache
 
 class SimulationManager:
     def __init__(self, WorkerClass):
@@ -58,13 +59,26 @@ class SimulationManager:
         return response
     
 
-def map_preview(scenario):
+def build_map(scenario):
     par_conn, child_conn = Pipe()
     worker = MapPreviewWorker(scenario, pipe=child_conn)
     p = Process(target=worker.run)
+    p.start()
     map_resp = par_conn.recv()
     p.join()
     return map_resp
+
+def map_preview(scenario):
+    map_id = scenario.map.id
+
+    if map_cache.exists(map_id):
+        return map_cache.get(map_id)
+    
+    blob = build_map(scenario)
+    map_cache.add_map(map_id, blob)
+
+    return blob
+    
 
 
 

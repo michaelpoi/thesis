@@ -11,7 +11,8 @@ from db.scenario_repository import ScenarioRepository
 from db.offline_repository import OfflineScheduler
 from sim.manager import offline_manager
 from plot.renderer import Renderer
-from db.offline_response import blob_adapter
+from cache.offline import blob_adapter
+from models.scenario import ScenarioStatus
 
 router = APIRouter(
     prefix="/offline",
@@ -61,6 +62,12 @@ async def post_preview(preview: OfflineScenarioPreview):
         collected_move['is_preview'] = False
         next = collected_move.pop('next', None)
         state = offline_manager.process_move(collected_move, scenario_id=preview.scenario_id)
+        
+        if state['status'] == 'FINISHED':
+            async with async_session() as session:
+                scenario_db = await ScenarioRepository.get_scenario(session, preview.scenario_id)
+                scenario_db.status = ScenarioStatus.FINISHED
+                await session.commit()
 
         renderer = Renderer()
 
@@ -89,4 +96,5 @@ async def ping(scenario_id: int, vehicle_id: int, turn: int):
     return {"turn": latest, 
             "data": blob, 
             "next": OfflineScheduler.seq_to_dict(next_move)}
+
 

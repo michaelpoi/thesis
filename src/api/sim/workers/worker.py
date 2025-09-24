@@ -42,7 +42,7 @@ class Worker(BaseWorker):
 
         if self.all_done(tm, tr):  # Strange Bug with MetaDrive
             logging.warning("All agents done")
-            agent_info = info[ego_agent_id]
+            agent_info = info.get(ego_agent_id, None)
             return self.process_finish(state, agent_info), False
         elif self.ego_done(tm, tr, ego_agent_id):
             logging.warning(f"Agent {ego_agent_id} done")

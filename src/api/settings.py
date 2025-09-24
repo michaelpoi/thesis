@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     db_host: str = "0.0.0.0"
     db_port: int = 5432
     blobs_folder: str = "blobs"
+    maps_folder: str = "maps"
+    logs_folder: str = "logs"
 
 
     @property
@@ -32,6 +34,14 @@ class Settings(BaseSettings):
     @property
     def blobs_dir(self) -> Path:
         return self.base_dir / self.blobs_folder
+    
+    @property
+    def maps_dir(self) -> Path:
+        return self.base_dir / self.maps_folder
+    
+    @property
+    def logs_dir(self) -> Path:
+        return self.base_dir / self.logs_folder
 
 
     class Config:

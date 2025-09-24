@@ -30,7 +30,6 @@ class Map(Base):
     __tablename__ = 'map'
     id = Column(Integer, primary_key=True, autoincrement=True)
     layout = Column(String, nullable=False)
-    image = Column(String, nullable=True)
     label = Column(String, nullable=True)
 
 class Vehicle(Base):

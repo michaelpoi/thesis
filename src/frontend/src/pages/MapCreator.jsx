@@ -4,23 +4,15 @@ import './MapCreator.css';
 import {fetchWithAuth} from "../utils/api";
 import {useNavigate} from "react-router-dom";
 import Header from "../components/Header";
+import StaticMapPlot from "../components/StaticMapPlot";
 
 const MapCreator = () =>{
     const [code, setCode] = useState('');
     const [mapId, setMapId] = useState(null);
-    const [imageSrc, setImageSrc] = useState(null);
+    const [mapObj, setMapObj] = useState(null);
     const [label, setLabel] = useState(null)
     const navigate = useNavigate();
 
-    useEffect(() => {
-        if (!mapId) return
-        setImageSrc('/loading.gif')
-        const interval = setInterval(() => {
-            setImageSrc(`${process.env.REACT_APP_API_URL}/static/${mapId}.png?t=${Date.now()}`);
-        }, 2000); // Check every 3 seconds
-
-        return () => clearInterval(interval);
-    }, [mapId]);
 
     const handleManualCodeInsertion = (e) =>{
         setCode(e.target.value);
@@ -35,7 +27,8 @@ const MapCreator = () =>{
                 method: "POST",
                 body: JSON.stringify({layout: code, label: label})
             }).then(data => {
-                setMapId(data.id)
+                setMapId(data.id);
+                setMapObj(data.blob.map);
         })
 
 
@@ -43,19 +36,25 @@ const MapCreator = () =>{
     }
 
     const handleUpdate = () => {
-        const response = fetch(`${process.env.REACT_APP_API_URL}/maps/${mapId}?t=${Date.now()}`,
+        // const response = fetch(`${process.env.REACT_APP_API_URL}/maps/${mapId}?t=${Date.now()}`,
+        //     {
+        //         method: "PUT",
+        //         headers: {
+        //             "Content-Type": "application/json"
+        //         },
+        //         body: JSON.stringify({layout: code})
+        //     }
+        //     )
+
+        
+
+        fetchWithAuth(`${process.env.REACT_APP_API_URL}/maps/${mapId}`,
             {
                 method: "PUT",
-                headers: {
-                    "Content-Type": "application/json"
-                },
                 body: JSON.stringify({layout: code})
-            }
-            )
-
-        // setTimeout(() => {
-        //     document.location.reload();
-        // }, 500)
+            }).then(data => {
+                setMapObj(data.blob.map);
+        })
     }
 
     const blocks = ["S", "r", "O", "y", "$", "T", "C", "R", "X", "Y"]
@@ -81,8 +80,10 @@ const MapCreator = () =>{
                 className="map_input"
                 placeholder="Enter map code..."
             />
-            {mapId && (
-                <img src={imageSrc} alt="Map preview" className="map_preview"/>
+            {mapObj && (
+                <StaticMapPlot
+                map={mapObj}
+                />
             )}
             <div className="buttons_menu">
                 {blocks.map((block, index) => (
