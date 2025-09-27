@@ -1,5 +1,6 @@
 import TaskList from "../components/TaskList";
 import Header from "../components/Header";
+import UsersList from "../components/UsersList";
 
 const Home = () => {
 
@@ -8,6 +9,7 @@ const Home = () => {
         <div className="App">
             <Header/>
             <TaskList/>
+            <UsersList/>
         </div>
     )
 }

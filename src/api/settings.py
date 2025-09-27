@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     blobs_folder: str = "blobs"
     maps_folder: str = "maps"
     logs_folder: str = "logs"
+    default_user_name: str = "admin"
+    default_user_password: str = "admin"
 
 
     @property

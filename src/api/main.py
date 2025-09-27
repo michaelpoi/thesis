@@ -14,7 +14,7 @@ from routers.maps import router as maps_router
 from routers.offline_scenarios import router as offline_router
 from routers.logs import router as logs_router
 from routers.users import router as users_router
-from utils import create_admin, create_map
+from utils import create_admin, create_map, create_default_scenarios
 from cache.offline import blob_adapter
 from cache.maps import map_cache
 
@@ -23,6 +23,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     await create_admin()
     await create_map()
+    await create_default_scenarios()
     yield
     await deinit_db()
     blob_adapter.clear_all()

@@ -3,6 +3,9 @@ from schemas.offline import OfflineScenarioPreview
 from typing import List
 from sim.workers.subworker import Subworker
 from multiprocessing import Process, Queue, set_start_method
+from sim.utils import get_termination_reason
+
+import logging
 
 set_start_method("spawn", force=True)
 
@@ -48,19 +51,33 @@ class OfflineWorker(BaseWorker):
             for agent_id in self.agent_ids.values():
                 move[agent_id] = flat[agent_id][step]
 
+            for aid in self.env.engine.agents.keys():
+                if aid not in move:
+                    move[aid] = [0.0, 0.0]
+
             obj, reward, tm, tr, info = self.env.step(move)
 
             state = self.generate_log_entry(info, tm, tr, True)
             
 
 
-            if self.all_done(tm, tr) or self.get_dones(tm, tr): # TEMP
+            if self.all_done(tm, tr):
                 finish_state = self.process_finish(state, None) # Replace None later
                 finish_state['frames'] = frames
                 return finish_state, False
             elif dones := self.get_dones(tm, tr):
-                for done in dones:
-                    self.process_termination(state, done, info)
+                termination_info = {}
+                logging.info(f"Dones: {dones}")
+                for vid, aid in dones:
+                    reason = None
+                    if ainfo := info.get(aid, None):
+                        reason = get_termination_reason(ainfo)
+                    termination_info[vid] = reason
+                    state = self.get_json(state)
+                    state['frames'] = frames
+                    state['tm_info'] = termination_info
+                    self.agent_ids.pop(vid, None)
+                    return state, True
 
             frames.append(self.get_agent_states())
 

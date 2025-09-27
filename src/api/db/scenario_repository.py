@@ -83,3 +83,38 @@ class ScenarioRepository:
         scenario_db = result.unique().scalar_one()
 
         return scenario_db
+    
+    @classmethod
+    async def get_vehicle(cls, session, scenario_id: int, vehicle_id: int):
+        query = select(Vehicle).where(Vehicle.scenario_id == scenario_id, Vehicle.id == vehicle_id)
+
+        res = await session.execute(query)
+
+        vehicle = res.unique().scalar_one_or_none()
+
+        return vehicle
+    
+    @classmethod
+    async def set_vehicle_as_terminated(cls, session, scenario_id, vehicle_id):
+        vehicle = await cls.get_vehicle(session, scenario_id, vehicle_id)
+        
+        if not vehicle:
+            return False
+        
+        if vehicle.is_terminated:
+            return False
+
+        vehicle.is_terminated = True
+
+        await session.commit()
+
+        return True
+    
+    @classmethod
+    async def is_vehicle_terminated(cls, session, scenario_id, vehicle_id):
+        vehicle = await cls.get_vehicle(session, scenario_id, vehicle_id)
+
+        if not vehicle:
+            return False
+        
+        return vehicle.is_terminated

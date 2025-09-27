@@ -40,7 +40,7 @@ class UserRepository:
         if not user:
             return None
 
-        return cls._build_schema(user)
+        return user
 
     @classmethod
     async def get_user_by_username(cls, username:str) -> Optional[SUser]:
@@ -95,6 +95,18 @@ class UserRepository:
         # TODO: add real validation here
         if len(password) < 5:
             raise ValueError("Password must be at least 5 characters")
+        
+    @classmethod
+    async def remove_user(cls, user_id):
+        user = await cls.get_user_by_id(user_id)
+        
+        if not user:
+            return
+    
+        async with async_session() as session:
+            await session.delete(user)
+            await session.commit()
+
 
 
 

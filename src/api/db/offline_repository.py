@@ -72,7 +72,7 @@ class OfflineScheduler:
     @classmethod
     async def collect_move(cls, session, self_move: OfflineScenarioMoveSequence):
         scenario_db = await ScenarioRepository.get_scenario(session, self_move.scenario_id)
-        vehicles_ids = [vehicle.id for vehicle in scenario_db.vehicles if vehicle.assigned_user_id]
+        vehicles_ids = [vehicle.id for vehicle in scenario_db.vehicles if vehicle.assigned_user_id and not vehicle.is_terminated]
         vehicles_ids.remove(self_move.vehicle_id)
         move_seqs = [self_move]
         for vehicle_id in vehicles_ids:

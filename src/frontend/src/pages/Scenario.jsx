@@ -23,6 +23,23 @@ const Scenario = () => {
   const reasonRef = useRef(reason);
   const egoAgentIDRef = useRef(egoAgentID);
   const [currentSpeed, setCurrentSpeed] = useState(0);
+  const [sensAcceleration, setSensAcceleration] = useState(0.3);
+  const [sensSteering, setSensSteering] = useState(0.15);
+
+  const sensAccelerationRef = useRef(0.3);
+  const sensSteeringRef = useRef(0.15);
+
+  const setAcc = (e) => {
+    const val = parseFloat(e.target.value)
+    setSensAcceleration(val);
+    sensAccelerationRef.current = val;
+  }
+
+  const setStr = (e) =>{
+    const val = parseFloat(e.target.value)
+    setSensSteering(val);
+    sensSteeringRef.current = val;
+  }
 
   // useEffect(() => { vehiclesRef.current = vehicles; }, [vehicles]);
   // useEffect(() => { mapRef.current = map; }, [map]);
@@ -41,7 +58,7 @@ const Scenario = () => {
 
   const sendDirection = (direction) => {
     if (ws.current) {
-      ws.current.send(JSON.stringify({ direction, timestamp: Date.now() }));
+      ws.current.send(JSON.stringify({ direction, timestamp: Date.now(), sens_acceleration: sensAccelerationRef.current, sens_steering: sensSteeringRef.current }));
     }
   };
 
@@ -87,6 +104,7 @@ const Scenario = () => {
             id,
             pos: agent.position,
             heading: agent.heading ?? 0,
+            goal: agent?.goal ?? null,
             color: id == egoAgentIDRef.current ? 0xff3b30 : 0x2ecc71,
           }));
 
@@ -152,10 +170,41 @@ const Scenario = () => {
     <div>
       <h3>Connected to Task: {task.name}</h3>
       <div>
-        <button onClick={() => sendDirection("UP")}>Up</button>
+        {/* <button onClick={() => sendDirection("UP")}>Up</button>
         <button onClick={() => sendDirection("DOWN")}>Down</button>
         <button onClick={() => sendDirection("LEFT")}>Left</button>
-        <button onClick={() => sendDirection("RIGHT")}>Right</button>
+        <button onClick={() => sendDirection("RIGHT")}>Right</button> */}
+
+        <div style={{ margin: "14px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <label>Acceleration sensitivity</label>
+            <span>{sensAcceleration.toFixed(2)}</span>
+          </div>
+          <input
+            type="range"
+            min={0.1}
+            max={1}
+            step={0.05}
+            value={sensAcceleration}
+            onChange={(e) => setAcc(e)}
+            style={{ width: "100%" }}
+          />
+        </div>
+        <div style={{ margin: "14px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <label>Steering sensitivity</label>
+            <span>{sensSteering.toFixed(2)}</span>
+          </div>
+          <input
+            type="range"
+            min={0.1}
+            max={1}
+            step={0.05}
+            value={sensSteering}
+            onChange={(e) => setStr(e)}
+            style={{ width: "100%" }}
+          />
+        </div>
       </div>
       <h4>Current ping: {ping}</h4>
       <h4>Current step: {step}</h4>

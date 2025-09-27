@@ -41,3 +41,4 @@ class Vehicle(Base):
     init_speed = Column(Float)
     scenario = relationship('Scenario', back_populates='vehicles')
     assigned_user_id = Column(Integer, ForeignKey('user.id'), nullable=True)
+    is_terminated = Column(Boolean, default=False)

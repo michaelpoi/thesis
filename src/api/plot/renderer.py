@@ -17,5 +17,6 @@ class Renderer:
                     'agents_map': state.get('agents_map', {}),
                     'reason': state.get('reason', None),
                     'trajectory': state.get('trajectory', None),
-                    'frames': state.get('frames', None)
+                    'frames': state.get('frames', None),
+                    'tm_info': state.get('tm_info', None)
                 }

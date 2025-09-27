@@ -28,6 +28,7 @@ class BaseWorker(ABC):
                 "position": self.env.engine.agents[agent_id].position.tolist(),
                 "velocity": self.env.engine.agents[agent_id].velocity.tolist(),
                 "heading": self.env.engine.agents[agent_id].heading_theta,
+                'goal': self.get_agent_destination(agent_id),
                 "is_human": True,
             }
             for agent_id in self.env.engine.agents
@@ -43,6 +44,55 @@ class BaseWorker(ABC):
                 }
 
         return agent_states
+    
+
+    def get_agent_destination(self, agent_id):
+        """
+        Returns:
+        {
+            "point": (x, y),                     # goal point
+            "region": {"center": (x, y), "length": L, "width": W}  # small box near goal
+        }
+        or None if not available.
+        """
+        agent = self.env.agents.get(agent_id)
+        if agent is None:
+            return None
+
+        nav = getattr(agent, "navigation", None)
+        if nav is None:
+            return None
+
+        # Try to get the final lane from navigation
+        lane = getattr(nav, "final_lane", None)
+        if lane is None:
+            route = getattr(nav, "route", None)
+            if route:
+                lane = route[-1]
+
+        if lane is None:
+            return None
+
+        # Goal point
+        if hasattr(lane, "end"):
+            gx, gy = lane.end
+        elif hasattr(lane, "position") and hasattr(lane, "length"):
+            gx, gy = lane.position(lane.length)  # fallback
+        else:
+            return None
+
+        # Build a tiny rectangular "goal area" around that point
+        lane_width = float(getattr(lane, "width", 3.5))
+        lane_width *= 3
+        goal_box_len = 7.5 # meters along lane; tweak as you like
+        region = {
+            "center": (gx, gy),
+            "length": goal_box_len,
+            "width": lane_width,
+        }
+
+        return {"point": (gx, gy), "region": region}
+
 
 
     
@@ -176,6 +226,7 @@ class BaseWorker(ABC):
             "horizon": self.scenario.steps,
             "num_agents": len(self.humans),
             "truncate_as_terminate": False,
+            "allow_respawn": False,
         }
         if not is_map_preview:
             from sim.multi_mixed_env import MultiPlayerEnv
@@ -235,7 +286,7 @@ class BaseWorker(ABC):
         return ego_agent_id and (tm.get(ego_agent_id, True) or tr.get(ego_agent_id, True))
     
     def get_dones(self, tm, tr):
-        return [aid for aid in self.agent_ids.values() if tm.get(aid, True) or tr.get(aid, True)]
+        return [(vid, aid) for (vid, aid) in self.agent_ids.items() if tm.get(aid, True) or tr.get(aid, True)]
     
 
     def process_finish(self, state, agent_info):

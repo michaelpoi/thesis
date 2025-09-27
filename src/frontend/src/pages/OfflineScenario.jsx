@@ -155,12 +155,12 @@ const OfflineScenario = () => {
 
         pingTurnRef.current = raw.turn;
 
-        applyResult(raw.data);
+        applyResult(raw.data, raw.tm);
         setMoves(raw.next?.moves || []);
     };
 
     /** Apply server result (either submit or ping) */
-    const applyResult = (raw) => {
+    const applyResult = (raw, tm) => {
         const plt = raw.plt ?? raw;
 
         if (plt?.positions) {
@@ -186,6 +186,12 @@ const OfflineScenario = () => {
 
         if (!raw.alive){
             goResult();
+            return
+        }
+
+        if(tm){
+            goResult();
+            return
         }
 
         if (plt?.map && Object.keys(plt.map).length) {
@@ -212,7 +218,7 @@ const OfflineScenario = () => {
             if (res.status === 200) {
                 const raw = await res.json();
                 setMoves(raw.next?.moves || []);
-                applyResult(raw.data);
+                applyResult(raw.data, raw.tm);
 
                 // got a real result -> stop pinging
                 pingTurnRef.current = raw.turn

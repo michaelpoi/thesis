@@ -44,42 +44,51 @@ async def get_preview(move: OfflineScenarioPreview):
     return response
 
 
+async def get_tm_status(session, state, scenario_id, vehicle_id):
+    if tm_info := state.get('tm_info', None):
+        logging.warning(f"TM info: {tm_info}")
+        reason = tm_info.get(vehicle_id, None)
+        if reason:
+            await ScenarioRepository.set_vehicle_as_terminated(session, scenario_id, int(vehicle_id))
+            return True
+    return False
+
+
 @router.post('/submit')
 async def post_preview(preview: OfflineScenarioPreview):
     logging.warning(preview)
-    await OfflineScheduler.save_move(preview)
-    collected_move =  await OfflineScheduler.get_global_move(preview.scenario_id, preview.vehicle_id)
-    # total_steps = sum([prv.steps for prv in preview.moves])
-    # collected_move = {
-    #     "steps": total_steps,
-    #     "moves":[
-    #         preview.model_dump()
-    #     ],
-    #     "is_preview": False
-    # }
-    
-    if collected_move:
-        collected_move['is_preview'] = False
-        next = collected_move.pop('next', None)
-        state = offline_manager.process_move(collected_move, scenario_id=preview.scenario_id)
+    async with async_session() as session:
+        tm = await ScenarioRepository.is_vehicle_terminated(session, preview.scenario_id, preview.vehicle_id)
+        if tm:
+            return Response(status=405)
+        await OfflineScheduler.save_move(preview)
+        collected_move =  await OfflineScheduler.get_global_move(preview.scenario_id, preview.vehicle_id)
         
-        if state['status'] == 'FINISHED':
-            async with async_session() as session:
+        if collected_move:
+            tm = False
+            collected_move['is_preview'] = False
+            next = collected_move.pop('next', None)
+            state = offline_manager.process_move(collected_move, scenario_id=preview.scenario_id)
+            
+            if state['status'] == 'FINISHED':
                 scenario_db = await ScenarioRepository.get_scenario(session, preview.scenario_id)
                 scenario_db.status = ScenarioStatus.FINISHED
                 await session.commit()
 
-        renderer = Renderer()
+            tm = await get_tm_status(session, state, preview.scenario_id, preview.vehicle_id)
+            logging.warning(f"Tm: {tm} for {preview.vehicle_id}")
 
-        response = renderer.get_rendering_data(state)
+            renderer = Renderer()
 
-        blob_adapter.save_blob(preview.scenario_id, response)
+            response = renderer.get_rendering_data(state)
 
-        turn = blob_adapter.latest_turn(preview.scenario_id)
-   
+            blob_adapter.save_blob(preview.scenario_id, response)
 
-        return {"turn": turn, "data": response, "next": next}
-    return {}
+            turn = blob_adapter.latest_turn(preview.scenario_id)
+    
+
+            return {"turn": turn, "data": response, "next": next, "tm": tm}
+        return {}
 
 
 @router.get('/ping/{scenario_id}/{vehicle_id}/{turn}')
@@ -89,12 +98,15 @@ async def ping(scenario_id: int, vehicle_id: int, turn: int):
         return Response(status_code=304)  # nothing new
     blob = blob_adapter.get_by_turn(scenario_id, latest)
     async with async_session() as session:
+        tm = await get_tm_status(session, blob, scenario_id, str(vehicle_id))
+        logging.warning(f"Tm: {tm} for {vehicle_id}")
         next_move = await OfflineScheduler.get_active_move(session, scenario_id, vehicle_id, editable=True)
                                                     
 
     # include the latest turn so the client can update its cursor
     return {"turn": latest, 
             "data": blob, 
-            "next": OfflineScheduler.seq_to_dict(next_move)}
+            "next": OfflineScheduler.seq_to_dict(next_move),
+            "tm": tm}
 
 

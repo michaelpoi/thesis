@@ -2,6 +2,7 @@ from abc import ABC
 from pathlib import Path
 import json
 import shutil
+import logging
 
 class FileSystemCache(ABC):
     def __init__(self, dir: Path):
@@ -24,6 +25,7 @@ class FileSystemCache(ABC):
         return key in self.loaded
     
     def clear_all(self):
+        logging.info(f"Clearing scenarios cache from {self.dir}...")
         if self.dir.exists():
             shutil.rmtree(self.dir)
         self.dir.mkdir(parents=True, exist_ok=True)

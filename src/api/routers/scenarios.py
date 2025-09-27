@@ -20,6 +20,7 @@ from sim.manager import manager as sim_manager
 
 from models.scenario import ScenarioStatus
 from plot.renderer import Renderer
+from constants import Constants
 
 router = APIRouter(
     prefix='/tasks',
@@ -108,16 +109,23 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
         while True:
             try:
                 try:
-                    data = await asyncio.wait_for(websocket.receive_json(), 0.1) # TODO: 
+                    data = await asyncio.wait_for(websocket.receive_json(), Constants.RealTime.WS_MOVE_TIMEOUT) 
                     dir = data.get('direction')
+                    a, s = data.get('sens_acceleration', None), data.get('sens_steering', None)
                     time = data.get('timestamp')
                 except asyncio.TimeoutError:
                     time = None
                     dir = "KEEP_ALIVE"
+                    a, s = None, None
 
-                # await session.refresh(scenario_db) could slow things down
 
-                move = Move(scenario_id=task_id, vehicle_id=vehicle_id, direction=dir, timestamp=time)
+                move = Move(scenario_id=task_id,
+                             vehicle_id=vehicle_id, 
+                             direction=dir, 
+                             timestamp=time, 
+                             sens_acceleration=a,
+                             sens_steering=s
+                            )
                 state = sim_manager.process_move(move)
 
             

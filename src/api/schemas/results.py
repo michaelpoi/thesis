@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 from schemas.maps import Map
+from constants import Constants
 
 class Vehicle(BaseModel):
     id: int = Field(None)
@@ -9,6 +10,7 @@ class Vehicle(BaseModel):
     init_y: int
     init_speed: float
     assigned_user_id: Optional[int]
+    is_terminated: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -34,6 +36,8 @@ class Move(BaseModel):
     vehicle_id: int
     direction: str
     timestamp: Optional[int]
+    sens_acceleration: Optional[float] = Constants.RealTime.MOVE_ACCELERATION_SENSITIVITY
+    sens_steering: Optional[float] = Constants.RealTime.MOVE_STEERING_SENSITIVITY
 
 class SimulationTask(BaseModel):
     id: int

@@ -14,28 +14,35 @@ export default function VehiclePlot({
   const rendererRef = useRef(null);
   const frameRef = useRef(null);
 
+  // vehicle meshes: id -> { mesh, geo, mat }
   const meshesRef = useRef(new Map());
+
+  // goal visuals per vehicle:
+  // id -> { rect?: { mesh, geo, mat }, sigRect?: string }
+  const goalsRef = useRef(new Map());
+
   const liveRef = useRef(new Map());
   const mapGroupRef = useRef(null);
   const followRef = useRef(followId);
 
-  // keep the latest followId visible to the RAF loop
+  // keep the latest followId for RAF loop
   useEffect(() => {
     followRef.current = followId;
   }, [followId]);
 
-  // Keep live state fresh + upsert/remove meshes on vehicles change
+  // Upsert/remove vehicles + regions whenever vehicles change
   useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    // keep latest dynamic state for RAF loop (positions, headings, colors)
     const next = new Map();
     for (const v of vehicles) next.set(v.id, { pos: v.pos, heading: v.heading, color: v.color });
     liveRef.current = next;
 
-    const scene = sceneRef.current;
-    if (!scene) return;
+    const wantIds = new Set(vehicles.map((v) => v.id));
 
-    const wantIds = new Set(vehicles.map(v => v.id));
-
-    // upsert
+    // --- upsert vehicles ---
     for (const v of vehicles) {
       if (!meshesRef.current.has(v.id)) {
         const geo = new THREE.BoxGeometry(4, 2, 1);
@@ -50,7 +57,46 @@ export default function VehiclePlot({
       }
     }
 
-    // remove stale
+    // --- upsert goal regions (solid rectangles) ---
+    for (const v of vehicles) {
+      const g = v.goal;
+      const current = goalsRef.current.get(v.id);
+
+      // If no goal/region -> remove any visuals
+      const hasRegion = Boolean(g?.region?.center);
+      if (!hasRegion) {
+        if (current?.rect) {
+          scene.remove(current.rect.mesh);
+          current.rect.geo.dispose();
+          current.rect.mat.dispose();
+        }
+        goalsRef.current.delete(v.id);
+        continue;
+      }
+
+      // Normalize region
+      const center = [
+        Number(Array.isArray(g.region.center) ? g.region.center[0] : g.region.center?.[0]),
+        Number(Array.isArray(g.region.center) ? g.region.center[1] : g.region.center?.[1]),
+      ];
+      const length = Number(g.region.length ?? 2.0);
+      const width = Number(g.region.width ?? 3.5);
+
+      const sigRect = `${center[0]},${center[1]},${length},${width},${metersToUnits}`;
+      if (!current?.sigRect || current.sigRect !== sigRect) {
+        // rebuild rectangle
+        if (current?.rect) {
+          scene.remove(current.rect.mesh);
+          current.rect.geo.dispose();
+          current.rect.mat.dispose();
+        }
+        const rect = makeGoalRect(center, length, width, metersToUnits);
+        scene.add(rect.mesh);
+        goalsRef.current.set(v.id, { rect, sigRect });
+      }
+    }
+
+    // --- remove stale vehicles (and their regions) ---
     for (const [id, rec] of meshesRef.current.entries()) {
       if (!wantIds.has(id)) {
         scene.remove(rec.mesh);
@@ -59,9 +105,19 @@ export default function VehiclePlot({
         meshesRef.current.delete(id);
       }
     }
-  }, [vehicles]);
+    for (const [id, rec] of goalsRef.current.entries()) {
+      if (!wantIds.has(id)) {
+        if (rec.rect) {
+          scene.remove(rec.rect.mesh);
+          rec.rect.geo.dispose();
+          rec.rect.mat.dispose();
+        }
+        goalsRef.current.delete(id);
+      }
+    }
+  }, [vehicles, metersToUnits]);
 
-  // Init once — IMPORTANT: do NOT depend on followId here
+  // Init once — no dependency on followId here
   useEffect(() => {
     const mount = mountRef.current;
     const width = mount?.clientWidth || 600;
@@ -73,7 +129,12 @@ export default function VehiclePlot({
     const aspect = width / height;
     const viewSize = 60;
     const camera = new THREE.OrthographicCamera(
-      -viewSize * aspect, viewSize * aspect, viewSize, -viewSize, 0.1, 1000
+      -viewSize * aspect,
+      viewSize * aspect,
+      viewSize,
+      -viewSize,
+      0.1,
+      1000
     );
     camera.position.set(0, 0, 100);
     camera.lookAt(0, 0, 0);
@@ -101,7 +162,7 @@ export default function VehiclePlot({
     rendererRef.current = renderer;
     mapGroupRef.current = mapGroup;
 
-    // ⬅️ seed meshes for CURRENT vehicles so nothing disappears after a rebuild
+    // seed vehicles & regions present at mount
     for (const v of vehicles) {
       if (!meshesRef.current.has(v.id)) {
         const geo = new THREE.BoxGeometry(4, 2, 1);
@@ -111,9 +172,25 @@ export default function VehiclePlot({
         scene.add(mesh);
         meshesRef.current.set(v.id, { mesh, geo, mat });
       }
+
+      const g = v.goal;
+      if (g?.region?.center) {
+        const center = [
+          Number(Array.isArray(g.region.center) ? g.region.center[0] : g.region.center?.[0]),
+          Number(Array.isArray(g.region.center) ? g.region.center[1] : g.region.center?.[1]),
+        ];
+        const length = Number(g.region.length ?? 2.0);
+        const width = Number(g.region.width ?? 3.5);
+        const sigRect = `${center[0]},${center[1]},${length},${width},${metersToUnits}`;
+
+        const rect = makeGoalRect(center, length, width, metersToUnits);
+        scene.add(rect.mesh);
+
+        goalsRef.current.set(v.id, { rect, sigRect });
+      }
     }
 
-    // if map already present, draw it
+    // draw map if present
     if (map) {
       drawRichMap(map, mapGroup, metersToUnits);
     }
@@ -140,15 +217,15 @@ export default function VehiclePlot({
         if (state.heading !== undefined) rec.mesh.rotation.z = state.heading;
       }
 
-      // follow handled every frame (no rebuild)
-       const fid = followRef.current;
-       if (fid && meshesRef.current.has(fid)) {
-         const rec = meshesRef.current.get(fid);
-         if (rec) {
-           camera.position.x = rec.mesh.position.x;
-           camera.position.y = rec.mesh.position.y;
-           camera.updateMatrixWorld();
-         }
+      // follow tracked vehicle
+      const fid = followRef.current;
+      if (fid && meshesRef.current.has(fid)) {
+        const rec = meshesRef.current.get(fid);
+        if (rec) {
+          camera.position.x = rec.mesh.position.x;
+          camera.position.y = rec.mesh.position.y;
+          camera.updateMatrixWorld();
+        }
       }
 
       renderer.render(scene, camera);
@@ -167,6 +244,15 @@ export default function VehiclePlot({
       }
       meshesRef.current.clear();
 
+      for (const [, rec] of goalsRef.current.entries()) {
+        if (rec.rect) {
+          scene.remove(rec.rect.mesh);
+          rec.rect.geo.dispose();
+          rec.rect.mat.dispose();
+        }
+      }
+      goalsRef.current.clear();
+
       if (mapGroupRef.current) {
         mapGroupRef.current.children.forEach((obj) => {
           if (obj.geometry) obj.geometry.dispose();
@@ -181,9 +267,9 @@ export default function VehiclePlot({
         renderer.domElement.parentNode.removeChild(renderer.domElement);
       }
     };
-  }, [background, metersToUnits]); // <- followId REMOVED here
+  }, [background, metersToUnits]);
 
-  // Draw the map (or redraw on scale change)
+  // Draw / redraw map when map or scale changes
   useEffect(() => {
     if (!map || !mapGroupRef.current) return;
     // clear and redraw
@@ -203,6 +289,26 @@ export default function VehiclePlot({
   );
 }
 
+function makeGoalRect(center, length, width, metersToUnits, color = 0x4caf50) {
+  const [cx, cy] = center;
+  const z = 0.06;
+
+  const geo = new THREE.PlaneGeometry(length * metersToUnits, width * metersToUnits);
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.6,          // a bit more visible
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(cx * metersToUnits, cy * metersToUnits, z);
+  // ❗ Do NOT rotate: PlaneGeometry is already in XY plane
+  // mesh.rotation.x = -Math.PI / 2;  // <-- remove this line
+
+  return { mesh, geo, mat };
+}
+
 // --- same drawRichMap helper you already have ---
 function drawRichMap(mapObj, group, metersToUnits) {
   const features = mapObj?.features || [];
@@ -217,7 +323,12 @@ function drawRichMap(mapObj, group, metersToUnits) {
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
 
     if (f.kind === "lane") {
-      const mat = new THREE.LineBasicMaterial({ color: defaultLaneColor, transparent: true, opacity: 0.7, depthWrite: false });
+      const mat = new THREE.LineBasicMaterial({
+        color: defaultLaneColor,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false,
+      });
       const line = new THREE.Line(geo, mat);
       line.renderOrder = 1;
       group.add(line);
@@ -231,13 +342,25 @@ function drawRichMap(mapObj, group, metersToUnits) {
     if (pattern === "dashed") {
       const dashSize = 1.0 * metersToUnits;
       const gapSize = 1.0 * metersToUnits;
-      const mat = new THREE.LineDashedMaterial({ color, transparent: true, opacity: 0.95, dashSize, gapSize, depthWrite: false });
+      const mat = new THREE.LineDashedMaterial({
+        color,
+        transparent: true,
+        opacity: 0.95,
+        dashSize,
+        gapSize,
+        depthWrite: false,
+      });
       const line = new THREE.Line(geo, mat);
       line.computeLineDistances();
       line.renderOrder = 2;
       group.add(line);
     } else {
-      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false });
+      const mat = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
       const line = new THREE.Line(geo, mat);
       line.renderOrder = 2;
       group.add(line);

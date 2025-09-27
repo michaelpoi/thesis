@@ -64,7 +64,7 @@ const TaskList = () => {
     }
 
     const onOffline = (task) => {
-        navigate(`offline/${task.id}/${usedVehicle}`)
+        navigate(`/offline/${task.id}/${usedVehicle}`,  { replace: true })
     }
 
     const onProcced = (task) => {

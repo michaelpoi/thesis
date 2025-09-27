@@ -24,3 +24,9 @@ async def register(user: AddUser, creator=Depends(get_current_admin)):
     return user
 
 
+@router.delete('/{user_id}')
+async def remove_user(user_id: int, remover=Depends(get_current_admin)):
+    await UserRepository.remove_user(user_id)
+    return {}
+
+

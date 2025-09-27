@@ -54,6 +54,18 @@
   background: #0056b3;
 }
 
+.remove_button {
+  background: #f20808;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
 /* General container */
 body {
   font-family: Arial, sans-serif;
