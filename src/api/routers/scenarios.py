@@ -106,6 +106,18 @@ async def connect_task(websocket: WebSocket, task_id: int, vehicle_id: int):
 
         rendered = Renderer()
 
+        # Lobby check
+        required = len([v for v in scenario_schema.vehicles if v.assigned_user_id])
+        
+        while (curr := manager.count_connections(task_id)) < required:
+            await manager.broadcast_json(task_id, {
+                "status": "WAITING",
+                "connected": curr,
+                "required": required
+            })
+
+            await asyncio.sleep(1)
+
         while True:
             try:
                 try:

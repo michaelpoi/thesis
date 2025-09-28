@@ -11,6 +11,9 @@ class ConnectionManager:
     async def disconnect(self, scenario_id: int, websocket):
         self.clients[scenario_id].remove(websocket)
         await websocket.close(code=1008)
+
+    def count_connections(self, scenario_id: int):
+        return len(self.clients.get(scenario_id, []))
         
 
     async def send_personal_message(self, data: dict, websocket):
