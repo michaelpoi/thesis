@@ -1,5 +1,6 @@
 FROM node:20-alpine
 ENV REACT_APP_API_URL="http://127.0.0.1/api"
+ENV REACT_APP_WS_URL="ws://127.0.0.1/api"
 WORKDIR /app
 
 COPY package*.json ./
