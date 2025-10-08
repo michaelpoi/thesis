@@ -274,8 +274,8 @@ useEffect(() => {
 
     return (
         <div>
-            <h1>Main Scenario</h1>
             <div className="image-container">
+                <h1>Main Scenario</h1>
                 {pingActive ? <img src="/loading.gif" alt="" /> : <VehicleTimelinePlot
                     frames={frames}
                     map={map}
@@ -347,6 +347,7 @@ useEffect(() => {
 
             <h2>Moves List</h2>
             <div className="moves-list">
+                {moves.length === 0 && <p>No moves added yet...</p>}
                 {moves.map((move, index) => (
                     <div key={index} className="move-card">
                         <p>
