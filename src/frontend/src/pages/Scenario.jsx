@@ -99,7 +99,7 @@ const Scenario = () => {
 
   useEffect(() => {
     const socket = new WebSocket(
-      `ws://127.0.0.1/api/tasks/ws/${task.id}/${usedVehicle}/`,
+      `ws://${process.env.REACT_APP_API_URL}/tasks/ws/${task.id}/${usedVehicle}/`,
       [localStorage.getItem("token")]
     );
     ws.current = socket;
