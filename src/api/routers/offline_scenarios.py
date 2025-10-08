@@ -50,8 +50,8 @@ async def get_tm_status(session, state, scenario_id, vehicle_id):
         reason = tm_info.get(vehicle_id, None)
         if reason:
             await ScenarioRepository.set_vehicle_as_terminated(session, scenario_id, int(vehicle_id))
-            return True
-    return False
+            return reason
+    return None
 
 
 @router.post('/submit')
@@ -65,7 +65,7 @@ async def post_preview(preview: OfflineScenarioPreview):
         collected_move =  await OfflineScheduler.get_global_move(preview.scenario_id, preview.vehicle_id)
         
         if collected_move:
-            tm = False
+            tm = None
             collected_move['is_preview'] = False
             next = collected_move.pop('next', None)
             state = offline_manager.process_move(collected_move, scenario_id=preview.scenario_id)

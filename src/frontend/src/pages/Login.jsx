@@ -88,8 +88,6 @@ const Login = () => {
           Login
         </button>
       </form>
-        <span>Do not have an account?</span>
-        <span><a href="/register">Register here</a></span>
     </div>
   )
 };

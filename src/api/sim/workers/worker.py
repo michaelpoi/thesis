@@ -7,6 +7,11 @@ import logging
 
 
 class Worker(BaseWorker):
+     def __init__(self, scenario, pipe=None):
+        super().__init__(scenario, pipe)
+        self.map_sent = {}
+
+
      def process_move(self, move: Move):
         move_arr = MoveConverter.convert(move)
         if move.direction == "KEEP_ALIVE":
@@ -52,4 +57,8 @@ class Worker(BaseWorker):
 
         self.current_step += 1
 
-        return self.get_json(state), True
+        send_map = self.map_sent.get(ego_agent_id, True)
+        if send_map:
+            self.map_sent[ego_agent_id] = False
+
+        return self.get_json(state, get_map=send_map), True

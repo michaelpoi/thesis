@@ -80,10 +80,10 @@ const Routes = () => {
       path: "/login",
       element: <Login/>,
     },
-    {
-      path: "/register",
-      element: <Register/>
-    }
+    // {
+    //   path: "/register",
+    //   element: <Register/>
+    // }
 
   ];
 

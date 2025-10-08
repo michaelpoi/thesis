@@ -45,10 +45,23 @@ const Scenario = () => {
     sensSteeringRef.current = val;
   }
 
-  // useEffect(() => { vehiclesRef.current = vehicles; }, [vehicles]);
-  // useEffect(() => { mapRef.current = map; }, [map]);
-  // useEffect(() => { stepRef.current = step; }, [step]);
-  // useEffect(() => { reasonRef.current = reason; }, [reason]);
+
+  const AccSensChange = (delta) => {
+    const curr = sensAccelerationRef.current;
+    if (curr + delta >= 0.1 && curr + delta <= 1) {
+      sensAccelerationRef.current = curr + delta;
+      setSensAcceleration(curr + delta);
+    }
+  }
+
+  const AccSteerChange = (delta) => {
+    const curr = sensSteeringRef.current;
+    if (curr + delta >= 0.1 && curr + delta <= 1) {
+      sensSteeringRef.current = curr + delta;
+      setSensSteering(curr + delta);
+    }
+  }
+
 
   const handleKeyDown = (e) => {
     switch (e.which) {
@@ -56,6 +69,10 @@ const Scenario = () => {
       case 68: sendDirection("RIGHT"); break;
       case 65: sendDirection("LEFT"); break;
       case 83: sendDirection("DOWN"); break;
+      case 81: AccSensChange(0.1); break; // Q
+      case 69: AccSteerChange(0.1); break; // E
+      case 90: AccSensChange(-0.1); break; // Z
+      case 67: AccSteerChange(-0.1); break; // C
       default: break;
     }
   };
@@ -189,39 +206,58 @@ const Scenario = () => {
       {ready ? (
         <>
           <div>
-            <div style={{ margin: "14px 0" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <label>Acceleration sensitivity</label>
-                <span>{sensAcceleration.toFixed(2)}</span>
-              </div>
-              <input
-                type="range"
-                min={0.1}
-                max={1}
-                step={0.05}
-                value={sensAcceleration}
-                onChange={(e) => setAcc(e)}
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div style={{ margin: "14px 0" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <label>Steering sensitivity</label>
-                <span>{sensSteering.toFixed(2)}</span>
-              </div>
-              <input
-                type="range"
-                min={0.1}
-                max={1}
-                step={0.05}
-                value={sensSteering}
-                onChange={(e) => setStr(e)}
-                style={{ width: "100%" }}
-              />
-            </div>
+
+
           </div>
           <h4>Current ping: {ping}</h4>
           <h4>Current step: {step}</h4>
+
+          <div style={{ display: "flex", justifyContent: "center", margin: "20px 0" }}>
+            <Speedometer speed={currentSpeed} max={200} units="km/h" />
+          </div>
+
+          <div style={{display: 'flex', allignItems: 'center'}}>
+            <p>Control the vehicle using W A S D keys</p>
+            <p>To control sensitivity set values manually or click:
+
+              <li>Q to <span style={{ color: 'green' }}>increase</span> acceleration sensitivity by 0.1</li>
+              <li>E to <span style={{ color: 'green' }}>increase</span> steering sensitivity by 0.1</li>
+              <li>Z to <span style={{ color: 'red' }}>decrease</span> acceleration sensitivity by 0.1</li>
+              <li>C to <span style={{ color: 'red' }}>decrease</span> steering sensitivity by 0.1</li>
+            </p>
+          </div>
+
+          <div style={{ width: "50%", marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <label>Acceleration sensitivity</label>
+              <span>{sensAcceleration.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              min={0.1}
+              max={1}
+              step={0.05}
+              value={sensAcceleration}
+              onChange={(e) => setAcc(e)}
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          <div style={{ width: "50%" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <label>Steering sensitivity</label>
+              <span>{sensSteering.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              min={0.1}
+              max={1}
+              step={0.05}
+              value={sensSteering}
+              onChange={(e) => setStr(e)}
+              style={{ width: "100%" }}
+            />
+          </div>
 
           <div style={{ display: "flex", justifyContent: "center", margin: "20px 0" }}>
             <Speedometer speed={currentSpeed} max={200} units="km/h" />
@@ -235,13 +271,13 @@ const Scenario = () => {
           />
         </>
 
-      ): (
-      <div style={{ textAlign: "center", padding: 24 }}>
-        <img src="/loading.gif" alt="Waiting for players..." />
-        <div style={{ marginTop: 8, color: "#bbb" }}>
-          Waiting for players {waiting.connected}/{waiting.required}
+      ) : (
+        <div style={{ textAlign: "center", padding: 24 }}>
+          <img src="/loading.gif" alt="Waiting for players..." />
+          <div style={{ marginTop: 8, color: "#bbb" }}>
+            Waiting for players {waiting.connected}/{waiting.required}
+          </div>
         </div>
-      </div>
       )}
 
     </div>

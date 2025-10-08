@@ -222,7 +222,7 @@ class BaseWorker(ABC):
             "traffic_density": 0.,
             "map": self.scenario.map.layout,
             "vehicle_config": self.get_vehicle_config(),
-            "out_of_road_done": False,
+            "out_of_road_done": True,
             "horizon": self.scenario.steps,
             "num_agents": len(self.humans),
             "truncate_as_terminate": False,
@@ -256,12 +256,12 @@ class BaseWorker(ABC):
 
 
 
-    def get_json(self, state, status="ACTIVE"):
+    def get_json(self, state, status="ACTIVE", get_map=True):
         message_body = {
             "scenario_id": self.scenario.id,
             "status": status,
             "step": self.current_step,
-            "map": self.rendered_map,
+            "map": self.rendered_map if get_map else None,
             "agents_map": self.agent_ids,
             "state": state
         }

@@ -14,12 +14,14 @@ const OfflineScenario = () => {
     const [moves, setMoves] = useState([{ steps: 1, steering: 0, acceleration: 0 }]);
     const [currentSpeed, setCurrentSpeed] = useState(0);
     const [frames, setFrames] = useState([]);
+    const reason = useRef(null);
     const [previewFrames, setPreviewFrames] = useState([]);
     const [frameStartInd, setFrameStartInd] = useState(0);
     const [startInd, setStartInd] = useState(0);
     const [fps, setFps] = useState(20);
     const [fpsMultiplyer, setFpsMultiplyer] = useState(1);
     const framesRef = useRef([]);
+    const [previewLoading, setPreviewLoading] = useState(false);
 
     const egoAgentIDRef = useRef(egoAgentID);
     const pingTurnRef = useRef(0);
@@ -40,7 +42,7 @@ const OfflineScenario = () => {
     navigate(`/offline_result/${id}/`, {
       replace: true,
       state: {
-        reason: "Unknown",
+        reason: reason.current || "Unknown",
         frames: framesRef.current,
         map: map,
         step: step,
@@ -68,9 +70,31 @@ const OfflineScenario = () => {
         }
     };
 
-    useEffect(() => {
-        fetch(`${process.env.REACT_APP_API_URL}/offline/init/${id}/`, { method: "POST" });
-    }, [id]);
+useEffect(() => {
+  let cancelled = false;
+
+  (async () => {
+    // 1) init the scenario on the server
+    await fetch(`${process.env.REACT_APP_API_URL}/offline/init/${id}/`, { method: "POST" });
+
+    // 2) then auto-submit the initial no-op move (if still mounted)
+    if (!cancelled) {
+      // make sure we only auto-fire when it's the default single move
+      if (
+        moves.length === 1 &&
+        moves[0].steps === 1 &&
+        moves[0].acceleration === 0 &&
+        moves[0].steering === 0
+      ) {
+        await handleMove();
+      }
+    }
+  })();
+
+  return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [id]);
+
 
     const handleChange = (e) => {
         setNewMove({ ...newMove, [e.target.name]: e.target.value });
@@ -100,6 +124,7 @@ const OfflineScenario = () => {
     };
 
     const handlePreview = async () => {
+        setPreviewLoading(true);
         const response = await fetch(`${process.env.REACT_APP_API_URL}/offline/preview/`, {
             method: "POST",
             body: JSON.stringify({
@@ -126,6 +151,7 @@ const OfflineScenario = () => {
             }));
             setPreviewVehicles(nextVehicles);
         }
+        setPreviewLoading(false);
     };
 
     const handleMove = async () => {
@@ -155,7 +181,7 @@ const OfflineScenario = () => {
 
         pingTurnRef.current = raw.turn;
 
-        applyResult(raw.data, raw.tm);
+        applyResult(raw.data, raw?.tm || null);
         setMoves(raw.next?.moves || []);
     };
 
@@ -185,11 +211,13 @@ const OfflineScenario = () => {
         }
 
         if (!raw.alive){
+            reason.current = tm;
             goResult();
             return
         }
 
         if(tm){
+            reason.current = tm;
             goResult();
             return
         }
@@ -253,15 +281,18 @@ const OfflineScenario = () => {
 
 
                 <h1>Preview Scenario</h1>
+                {previewLoading ? <img src="/loading.gif" alt="" /> :
                 <VehicleTimelinePlot
                     frames={previewFrames}
                     map={map}
                     metersToUnits={1}
-                    followId={egoAgentIDRef.current}
+                    followId={"agent0"}
                     fps={20}
                     loop={true}
                     startPaused={false}
                 />
+                }
+                
 
                 <form onSubmit={handleFrameStartChange}>
                     <input
@@ -300,8 +331,8 @@ const OfflineScenario = () => {
                 </form>
             </div>
             <div style={{display: "flex", justifyContent: "center"}}>
-                <button onClick={handlePreview} disabled={pingActive}>Preview</button>
-                <button onClick={handleMove} disabled={pingActive}>Submit</button>
+                <button onClick={handlePreview} disabled={pingActive || moves.length === 0}>Preview</button>
+                <button onClick={handleMove} disabled={pingActive || moves.length === 0}>Submit</button>
             </div>
             
 

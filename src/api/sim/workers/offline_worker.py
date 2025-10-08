@@ -38,6 +38,18 @@ class OfflineWorker(BaseWorker):
     def preview_preprocessor(self, data:dict):
         move = OfflineScenarioPreview(**data)
         return move
+    
+    def form_tm_info(self, dones, info):
+        termination_info = {}
+        logging.info(f"Dones: {dones}")
+        for vid, aid in dones:
+            reason = None
+            if ainfo := info.get(aid, None):
+                reason = get_termination_reason(ainfo)
+            termination_info[vid] = reason
+            self.agent_ids.pop(vid, None)
+
+        return termination_info
 
     def process_move(self, data: dict):
         moves, steps = self.preprocessor(data)
@@ -64,20 +76,14 @@ class OfflineWorker(BaseWorker):
             if self.all_done(tm, tr):
                 finish_state = self.process_finish(state, None) # Replace None later
                 finish_state['frames'] = frames
+                finish_state['tm_info'] = self.form_tm_info(self.get_dones(tm, tr), info)
+                logging.warning(f"Finish tm info: {finish_state['tm_info']}")
                 return finish_state, False
             elif dones := self.get_dones(tm, tr):
-                termination_info = {}
-                logging.info(f"Dones: {dones}")
-                for vid, aid in dones:
-                    reason = None
-                    if ainfo := info.get(aid, None):
-                        reason = get_termination_reason(ainfo)
-                    termination_info[vid] = reason
-                    state = self.get_json(state)
-                    state['frames'] = frames
-                    state['tm_info'] = termination_info
-                    self.agent_ids.pop(vid, None)
-                    return state, True
+                state = self.get_json(state)
+                state['frames'] = frames
+                state['tm_info'] = self.form_tm_info(dones, info)
+                return state, True
 
             frames.append(self.get_agent_states())
 

@@ -11,7 +11,7 @@ export default function VehicleTimelinePlot({
   loop = false,
   startPaused = false,
   onPlayStateChange,
-  startIndex = 0,              // index in the FULL timeline to start showing from
+  startIndex = 0,
 }) {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
@@ -22,6 +22,9 @@ export default function VehicleTimelinePlot({
   const mapGroupRef = useRef(null);
   const meshesRef = useRef(new Map());
 
+  // NEW: goal visuals per vehicle: id -> { rect?: {mesh,geo,mat}, sigRect?: string }
+  const goalsRef = useRef(new Map());
+
   const [isPlaying, setIsPlaying] = useState(!startPaused);
   const isPlayingRef = useRef(!startPaused);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
@@ -30,10 +33,10 @@ export default function VehicleTimelinePlot({
   const followRef = useRef(followId);
   useEffect(() => { followRef.current = followId; }, [followId]);
 
-  // 1) Normalize any server format to Array<Array<...>>
+  // 1) normalize frames and KEEP goal
   const framesNorm = useMemo(() => normalizeFrames(frames), [frames]);
 
-  // 2) Compute the effective start (clamped), and slice a visible segment
+  // 2) slice visible part
   const effectiveStart = useMemo(() => {
     if (!framesNorm.length) return 0;
     const s = Number.isFinite(startIndex) ? Math.max(0, Math.min(startIndex, framesNorm.length - 1)) : 0;
@@ -45,16 +48,14 @@ export default function VehicleTimelinePlot({
     [framesNorm, effectiveStart]
   );
 
-  // 3) Frame index is relative to the *visible* slice
   const [frameIndex, setFrameIndex] = useState(0);
 
-  // If the startIndex or the visible slice changes, reset to the first visible frame
   useEffect(() => {
     setFrameIndex(0);
     lastTickRef.current = performance.now();
   }, [effectiveStart, visibleFrames.length]);
 
-  /* ---------- init scene (unchanged) ---------- */
+  /* ---------- init scene ---------- */
   useEffect(() => {
     const mount = mountRef.current;
     const width = mount?.clientWidth || 600;
@@ -124,7 +125,7 @@ export default function VehicleTimelinePlot({
         lastTickRef.current = now - (dt % frameDuration);
         setFrameIndex(prev => {
           let next = prev + 1;
-          if (next == visibleFrames.length - 1){
+          if (next === visibleFrames.length - 1) {
             isPlayingRef.current = false;
             setIsPlaying(false);
             onPlayStateChange?.(false);
@@ -156,6 +157,15 @@ export default function VehicleTimelinePlot({
       }
       meshesRef.current.clear();
 
+      for (const [, rec] of goalsRef.current.entries()) {
+        if (rec.rect) {
+          scene.remove(rec.rect.mesh);
+          rec.rect.geo.dispose();
+          rec.rect.mat.dispose();
+        }
+      }
+      goalsRef.current.clear();
+
       if (mapGroupRef.current) {
         mapGroupRef.current.children.forEach((obj) => {
           if (obj.geometry) obj.geometry.dispose();
@@ -170,7 +180,6 @@ export default function VehicleTimelinePlot({
         renderer.domElement.parentNode.removeChild(renderer.domElement);
       }
     };
-    // include dependencies that actually change the loop timing/inputs
   }, [background, metersToUnits, fps, loop, startPaused, map, visibleFrames.length]);
 
   /* ---------- redraw map on change ---------- */
@@ -185,7 +194,7 @@ export default function VehicleTimelinePlot({
     renderOnce();
   }, [map, metersToUnits]);
 
-  /* ---------- render current visible frame ---------- */
+  /* ---------- render current visible frame (vehicles + goals) ---------- */
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -193,12 +202,13 @@ export default function VehicleTimelinePlot({
     const current = visibleFrames[frameIndex] || [];
     const wantIds = new Set(current.map(v => String(v.id)));
 
-    // upsert
+    // upsert vehicle meshes
     for (const v of current) {
       const idKey = String(v.id);
       if (!meshesRef.current.has(idKey)) {
         const geo = new THREE.BoxGeometry(4, 2, 1);
-        const mat = new THREE.MeshBasicMaterial({ color: v.color ?? 0xff3b30 });
+        const isEgo = String(v.id) === String(followRef.current);
+        const mat = new THREE.MeshBasicMaterial({ color: isEgo ? 0xff3b30 : 0x2ecc71 });
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.set(0, 0, 1.0);
         scene.add(mesh);
@@ -206,7 +216,7 @@ export default function VehicleTimelinePlot({
       }
     }
 
-    // remove stale
+    // remove stale vehicle meshes
     for (const [idKey, rec] of meshesRef.current.entries()) {
       if (!wantIds.has(idKey)) {
         scene.remove(rec.mesh);
@@ -224,7 +234,58 @@ export default function VehicleTimelinePlot({
       const [x, y] = v.position;
       rec.mesh.position.set(x * metersToUnits, y * metersToUnits, 1.0);
       if (v.heading !== undefined) rec.mesh.rotation.z = v.heading;
-      if (v.color != null) rec.mat.color.setHex(v.color);
+      const isEgo = String(v.id) === String(followRef.current);
+      rec.mat.color.setHex(isEgo ? 0xff3b30 : 0x2ecc71);
+      
+    }
+
+    // --- GOALS (same logic as VehiclePlot) ---
+    for (const v of current) {
+      const idKey = String(v.id);
+      const g = v.goal;
+      const currentGoal = goalsRef.current.get(idKey);
+
+      const hasRegion = Boolean(g?.region?.center);
+      if (!hasRegion) {
+        // remove if existed
+        if (currentGoal?.rect) {
+          scene.remove(currentGoal.rect.mesh);
+          currentGoal.rect.geo.dispose();
+          currentGoal.rect.mat.dispose();
+        }
+        goalsRef.current.delete(idKey);
+        continue;
+      }
+
+      // normalize region
+      const cx = Number(Array.isArray(g.region.center) ? g.region.center[0] : g.region.center?.[0]);
+      const cy = Number(Array.isArray(g.region.center) ? g.region.center[1] : g.region.center?.[1]);
+      const length = Number(g.region.length ?? 2.0);
+      const width = Number(g.region.width ?? 3.5);
+      const sigRect = `${cx},${cy},${length},${width},${metersToUnits}`;
+
+      if (!currentGoal?.sigRect || currentGoal.sigRect !== sigRect) {
+        if (currentGoal?.rect) {
+          scene.remove(currentGoal.rect.mesh);
+          currentGoal.rect.geo.dispose();
+          currentGoal.rect.mat.dispose();
+        }
+        const rect = makeGoalRect([cx, cy], length, width, metersToUnits);
+        scene.add(rect.mesh);
+        goalsRef.current.set(idKey, { rect, sigRect });
+      }
+    }
+
+    // remove goal visuals for vehicles not present this frame
+    for (const [idKey, rec] of goalsRef.current.entries()) {
+      if (!wantIds.has(idKey)) {
+        if (rec.rect) {
+          scene.remove(rec.rect.mesh);
+          rec.rect.geo.dispose();
+          rec.rect.mat.dispose();
+        }
+        goalsRef.current.delete(idKey);
+      }
     }
 
     // follow camera
@@ -307,12 +368,14 @@ export default function VehicleTimelinePlot({
   );
 }
 
-/* ---------- normalization helper ---------- */
+/* ---------- keep GOAL in frames ---------- */
 function normalizeFrames(input) {
   if (!input) return [];
 
+  // Already list-of-lists
   if (Array.isArray(input) && Array.isArray(input[0])) return input;
 
+  // Array of frame objects: [{ id: {position, heading, goal, ...}, ... }, ...]
   if (Array.isArray(input) && input.length && typeof input[0] === "object" && !Array.isArray(input[0])) {
     return input.map(frameObj =>
       Object.entries(frameObj).map(([id, v]) => ({
@@ -320,16 +383,19 @@ function normalizeFrames(input) {
         position: v.position ?? [0, 0],
         heading: v.heading,
         color: v.is_human ? 0xff3b30 : 0x2ecc71,
+        goal: v.goal, // <-- preserve goal
       }))
     );
   }
 
+  // Single frame object
   if (typeof input === "object" && !Array.isArray(input)) {
     return [Object.entries(input).map(([id, v]) => ({
       id,
       position: v.position ?? [0, 0],
       heading: v.heading,
       color: v.is_human ? 0xff3b30 : 0x2ecc71,
+      goal: v.goal, // <-- preserve goal
     }))];
   }
 
@@ -393,4 +459,22 @@ function drawRichMap(mapObj, group, metersToUnits) {
       group.add(line);
     }
   }
+}
+
+/* ---------- goal rectangle helper (same as VehiclePlot) ---------- */
+function makeGoalRect(center, length, width, metersToUnits, color = 0x4caf50) {
+  const [cx, cy] = center;
+  const z = 0.06;
+
+  const geo = new THREE.PlaneGeometry(length * metersToUnits, width * metersToUnits);
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(cx * metersToUnits, cy * metersToUnits, z);
+  return { mesh, geo, mat };
 }
