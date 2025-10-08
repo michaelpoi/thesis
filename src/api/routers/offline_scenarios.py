@@ -1,6 +1,6 @@
 from typing import List
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 
 from schemas.offline import OfflineScenarioPreview, DiscreteMove
@@ -13,6 +13,7 @@ from sim.manager import offline_manager
 from plot.renderer import Renderer
 from cache.offline import blob_adapter
 from models.scenario import ScenarioStatus
+from auth.auth import get_current_user
 
 router = APIRouter(
     prefix="/offline",
@@ -21,7 +22,7 @@ router = APIRouter(
 
 # TODO: remove it later
 @router.post('/init/{scenario_id}')
-async def init_scenario(scenario_id: int):
+async def init_scenario(scenario_id: int, user=Depends(get_current_user)):
     async with async_session() as session:
         scenario_db = await ScenarioRepository.get_scenario(session, scenario_id)
 
@@ -31,7 +32,7 @@ async def init_scenario(scenario_id: int):
 
 
 @router.post('/preview')
-async def get_preview(move: OfflineScenarioPreview):
+async def get_preview(move: OfflineScenarioPreview, user=Depends(get_current_user)):
     move_json = move.model_dump()
     move_json['is_preview'] = True
 
@@ -55,7 +56,7 @@ async def get_tm_status(session, state, scenario_id, vehicle_id):
 
 
 @router.post('/submit')
-async def post_preview(preview: OfflineScenarioPreview):
+async def post_preview(preview: OfflineScenarioPreview, user=Depends(get_current_user)):
     logging.warning(preview)
     async with async_session() as session:
         tm = await ScenarioRepository.is_vehicle_terminated(session, preview.scenario_id, preview.vehicle_id)
@@ -92,7 +93,7 @@ async def post_preview(preview: OfflineScenarioPreview):
 
 
 @router.get('/ping/{scenario_id}/{vehicle_id}/{turn}')
-async def ping(scenario_id: int, vehicle_id: int, turn: int):
+async def ping(scenario_id: int, vehicle_id: int, turn: int, user=Depends(get_current_user)):
     latest = blob_adapter.latest_turn(scenario_id)
     if latest is None or latest < turn:
         return Response(status_code=304)  # nothing new

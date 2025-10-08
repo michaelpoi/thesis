@@ -36,17 +36,7 @@ const MapCreator = () =>{
     }
 
     const handleUpdate = () => {
-        // const response = fetch(`${process.env.REACT_APP_API_URL}/maps/${mapId}?t=${Date.now()}`,
-        //     {
-        //         method: "PUT",
-        //         headers: {
-        //             "Content-Type": "application/json"
-        //         },
-        //         body: JSON.stringify({layout: code})
-        //     }
-        //     )
 
-        
 
         fetchWithAuth(`${process.env.REACT_APP_API_URL}/maps/${mapId}`,
             {

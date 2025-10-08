@@ -13,7 +13,7 @@ from database import async_session
 from schemas.results import Scenario as SScenario, Vehicle as SVehicle, ScenarioBase as SScenarioAdd
 from sqlalchemy.future import select
 from schemas.results import Move
-from auth.auth import get_current_user
+from auth.auth import get_current_user, get_current_admin
 from routers.utils.connection import ConnectionManager
 from sim.workers.worker import Worker
 from sim.manager import manager as sim_manager
@@ -29,7 +29,7 @@ router = APIRouter(
 
 
 @router.post('/')
-async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)) -> SScenario:
+async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_admin)) -> SScenario:
     # Convert Pydantic model to dict, remove the 'id' field and 'vehicles' list
     scenario_json = scenario.model_dump()
     vehicles_json = scenario_json.pop('vehicles')  # Extract the 'vehicles' list
@@ -51,7 +51,7 @@ async def create_scenario(scenario: SScenarioAdd, user=Depends(get_current_user)
 
 
 @router.get('/')
-async def list_all_tasks() -> List[SScenario]:
+async def list_all_tasks(admin=Depends(get_current_admin)) -> List[SScenario]:
     return await ScenarioRepository.get_all()
 
 manager = ConnectionManager()

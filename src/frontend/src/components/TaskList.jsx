@@ -29,8 +29,7 @@ const TaskList = () => {
 
 
     useEffect(() => {
-        fetch(`${process.env.REACT_APP_API_URL}/tasks/`)
-            .then((res) => res.json())
+        fetchWithAuth(`${process.env.REACT_APP_API_URL}/tasks/`)
             .then((data) => setTasks(data));
     }, []);
 

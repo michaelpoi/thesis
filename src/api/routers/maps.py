@@ -2,7 +2,7 @@ import os
 
 from fastapi.exceptions import HTTPException
 
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, Depends
 from schemas.maps import BaseMap as SAddMap, Map as SMap, NamedMap as SNamedMap
 from schemas.results import Scenario as SScenario
 
@@ -12,6 +12,7 @@ from db.map_repository import MapRepository
 from models.scenario import ScenarioStatus
 from sim.manager import map_preview
 from cache.maps import map_cache
+from auth.auth import get_current_admin
 
 router = APIRouter(
     prefix='/maps',
@@ -19,18 +20,18 @@ router = APIRouter(
 )
 
 @router.get('/')
-async def list_maps():
+async def list_maps(user=Depends(get_current_admin)):
     return await MapRepository.get_all_maps()
 
 @router.delete('/{map_id}')
-async def delete_map(map_id: int):
+async def delete_map(map_id: int, user=Depends(get_current_admin)):
     await MapRepository.delete_map(map_id)
 
     return {'message': 'Map deleted'}
 
 
 @router.post("/")
-async def create_map(smap: SNamedMap):
+async def create_map(smap: SNamedMap, user=Depends(get_current_admin)):
     map_db = await MapRepository.create_map(smap.label, smap.layout)
 
     return get_full_map(map_db)
@@ -60,7 +61,7 @@ def get_full_map(map_db: Map):
 
 
 @router.put("/{map_id}")
-async def update_map(map_id: int, smap: SAddMap):
+async def update_map(map_id: int, smap: SAddMap, user=Depends(get_current_admin)):
     map_obj = await MapRepository.update_map(map_id, smap.layout)
 
     map_cache.invalidate(map_id)
@@ -68,7 +69,7 @@ async def update_map(map_id: int, smap: SAddMap):
     return get_full_map(map_obj)
 
 @router.get('/{map_id}')
-async def preview_map(map_id: int):
+async def preview_map(map_id: int, user=Depends(get_current_admin)):
     map_db = await MapRepository.get_map_by_id(map_id)
     if not map_db:
         raise HTTPException(status_code=404, detail="Map not found")

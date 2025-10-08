@@ -212,9 +212,6 @@ const Scenario = () => {
           <h4>Current ping: {ping}</h4>
           <h4>Current step: {step}</h4>
 
-          <div style={{ display: "flex", justifyContent: "center", margin: "20px 0" }}>
-            <Speedometer speed={currentSpeed} max={200} units="km/h" />
-          </div>
 
           <div style={{display: 'flex', allignItems: 'center'}}>
             <p>Control the vehicle using W A S D keys</p>

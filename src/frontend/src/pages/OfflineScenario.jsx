@@ -75,7 +75,11 @@ useEffect(() => {
 
   (async () => {
     // 1) init the scenario on the server
-    await fetch(`${process.env.REACT_APP_API_URL}/offline/init/${id}/`, { method: "POST" });
+    await fetch(`${process.env.REACT_APP_API_URL}/offline/init/${id}/`, 
+        { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem('token')}`}
+        });
 
     // 2) then auto-submit the initial no-op move (if still mounted)
     if (!cancelled) {
@@ -132,7 +136,7 @@ useEffect(() => {
                 vehicle_id: Number(vehicle_id),
                 moves: moves,
             }),
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem('token')}`},
         });
 
         const raw = await response.json();
@@ -162,7 +166,7 @@ useEffect(() => {
                 vehicle_id: Number(vehicle_id),
                 moves: moves,
             }),
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem('token')}` },
         });
 
         if (response.status === 405) {
@@ -240,7 +244,12 @@ useEffect(() => {
         if (!pingActiveRef.current) return;
         try {
             const res = await fetch(
-                `${process.env.REACT_APP_API_URL}/offline/ping/${id}/${vehicle_id}/${pingTurnRef.current + 1}/`
+                `${process.env.REACT_APP_API_URL}/offline/ping/${id}/${vehicle_id}/${pingTurnRef.current + 1}/`,
+                { 
+                    method: "GET",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem('token')}` }
+                }
+                
             );
 
             if (res.status === 200) {
