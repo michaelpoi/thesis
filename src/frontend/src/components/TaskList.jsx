@@ -95,7 +95,7 @@ const TaskList = () => {
         try {
             const res = await fetch(`${process.env.REACT_APP_API_URL}/logs/${id}`, {
                 method: "GET",
-                headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, // no Content-Type on GET
+                headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
             });
 
             if (res.status === 401) {
