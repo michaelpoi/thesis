@@ -222,7 +222,7 @@ class BaseWorker(ABC):
             "traffic_density": 0.,
             "map": self.scenario.map.layout,
             "vehicle_config": self.get_vehicle_config(),
-            "out_of_road_done": True,
+            "out_of_road_done": False,
             "horizon": self.scenario.steps,
             "num_agents": len(self.humans),
             "truncate_as_terminate": False,

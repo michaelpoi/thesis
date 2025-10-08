@@ -1,6 +1,5 @@
 from typing import List
 
-
 from models.offline_scenario import OfflineScenarioMoveSequence, OfflineScenarioMove
 from db.scenario_repository import ScenarioRepository
 from database import async_session

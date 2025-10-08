@@ -15,6 +15,7 @@ const TaskList = () => {
     const [maps, setMaps] = useState([]);
     const [selectedMap, setSelectedMap] = useState('');
     const [newScenarioOffline, setNewScenarioOffline] = useState(false);
+    const [users, setUsers] = useState([]);
 
 
     useEffect(() => {
@@ -23,6 +24,16 @@ const TaskList = () => {
                 console.log(data)
                 if (data) {
                     setMaps(data)
+                }
+            })
+    }, []);
+
+    useEffect(() => {
+        fetchWithAuth(`${process.env.REACT_APP_API_URL}/users/`)
+            .then(data => {
+                console.log(data)
+                if (data) {
+                    setUsers(data);
                 }
             })
     }, []);
@@ -86,7 +97,7 @@ const TaskList = () => {
             handleInputChange(index, 'assigned_user_id', null);
         }
         else {
-            handleInputChange(index, 'assigned_user_id', 1)
+            handleInputChange(index, 'assigned_user_id', users[0]?.id || 1);
         }
 
     }
@@ -221,12 +232,13 @@ const TaskList = () => {
                                     </label>
                                     <label>
                                         Assigned User:
-                                        <input
-                                            value={vehicle.assigned_user_id}
-                                            onChange={(e) => handleInputChange(index, "assigned_user_id", e.target.value)}
-                                            disabled={!vehicle.assigned_user_id}
-                                        />
-                                        {userError && <span style={{ color: "red" }}>{userError}</span>}
+
+                                        <select value={vehicle.assigned_user_id} onChange={(e) => handleInputChange(index, "assigned_user_id", e.target.value)} disabled={!vehicle.assigned_user_id}>
+                                            <option value="" disabled>Select an option</option>
+                                            {users.map((option, index) => (
+                                                <option key={index} value={option.id}>{option.username}</option>
+                                            ))}
+                                        </select>
                                     </label>
                                     <label>
                                         Is AV?
