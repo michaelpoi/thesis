@@ -1,5 +1,6 @@
 from typing import List
 
+
 from models.offline_scenario import OfflineScenarioMoveSequence, OfflineScenarioMove
 from db.scenario_repository import ScenarioRepository
 from database import async_session
@@ -92,21 +93,29 @@ class OfflineScheduler:
         '''
         Returns user`s move that is not executed yet
         '''
-        query = select(OfflineScenarioMoveSequence).options(joinedload(OfflineScenarioMoveSequence.moves)).where(
-            OfflineScenarioMoveSequence.scenario_id == scenario_id,
-            OfflineScenarioMoveSequence.vehicle_id == vehicle_id,
-            OfflineScenarioMoveSequence.is_executed == False,
-            OfflineScenarioMoveSequence.is_editable == editable
+        q = (
+            select(OfflineScenarioMoveSequence)
+            .options(joinedload(OfflineScenarioMoveSequence.moves))
+            .where(
+                OfflineScenarioMoveSequence.scenario_id == scenario_id,
+                OfflineScenarioMoveSequence.vehicle_id == vehicle_id,
+                OfflineScenarioMoveSequence.is_executed.is_(False),
+                OfflineScenarioMoveSequence.is_editable.is_(editable),
+            )
+            .order_by(OfflineScenarioMoveSequence.id.desc())
+            .limit(1)
         )
+        res = await session.execute(q)
+        latest = res.scalars().first()
 
-        res = await session.execute(query)
-        move_seq = res.unique().scalar_one_or_none()
+        # res = await session.execute(query)
+        # move_seq = res.unique().scalar_one_or_none()
 
-        if move_seq and editable:
-            move_seq.is_editable = False
+        if latest and editable:
+            latest.is_editable = False
             await session.commit()
 
-        return move_seq
+        return latest
 
 
     @classmethod

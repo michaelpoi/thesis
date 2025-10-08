@@ -17,8 +17,13 @@ class Scenario(Base):
     __tablename__ = 'scenario'
     id = Column(Integer, primary_key=True, autoincrement=True)
     steps = Column(Integer)
-    vehicles = relationship('Vehicle', back_populates='scenario')
-    owner_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    vehicles = relationship(
+        'Vehicle',
+        back_populates='scenario',
+        cascade='all, delete-orphan',   # ORM deletes children
+        passive_deletes=True            # trust DB delete cascade too
+    )
+    owner_id = Column(Integer, ForeignKey('user.id', ondelete="CASCADE"), nullable=False)
     owner = relationship('User')
     map_id = Column(Integer, ForeignKey('map.id'), nullable=False)
     map = relationship('Map')
@@ -35,10 +40,14 @@ class Map(Base):
 class Vehicle(Base):
     __tablename__ = 'vehicle'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    scenario_id = Column(Integer, ForeignKey('scenario.id'))
+    scenario_id = Column(
+        Integer,
+        ForeignKey('scenario.id', ondelete='CASCADE'),  # DB deletes on parent delete
+        nullable=False
+    )
     init_x = Column(Integer)
     init_y = Column(Integer)
     init_speed = Column(Float)
     scenario = relationship('Scenario', back_populates='vehicles')
-    assigned_user_id = Column(Integer, ForeignKey('user.id'), nullable=True)
+    assigned_user_id = Column(Integer, ForeignKey('user.id', ondelete="SET NULL"), nullable=True)
     is_terminated = Column(Boolean, default=False)

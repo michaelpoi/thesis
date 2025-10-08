@@ -25,9 +25,9 @@ async def lifespan(app: FastAPI):
     await create_map()
     await create_default_scenarios()
     yield
-    # await deinit_db()
-    # blob_adapter.clear_all()
-    # map_cache.clear_all()
+    await deinit_db()
+    blob_adapter.clear_all()
+    map_cache.clear_all()
 
 app = FastAPI(
     title="My API",
