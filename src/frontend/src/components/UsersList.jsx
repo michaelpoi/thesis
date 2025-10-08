@@ -96,6 +96,7 @@ const UsersList = () => {
                                 value={newUserPassword}
                                 onChange={(e) => setNewUserPassword(e.target.value)}
                                 placeholder="password"
+                                type="password"
                             />
                         </label>
 
