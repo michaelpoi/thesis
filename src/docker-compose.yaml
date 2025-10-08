@@ -53,24 +53,6 @@ services:
       - api
 
 
-#  schemaspy:
-#    image: schemaspy/schemaspy
-#    container_name: schemaspy
-#    depends_on:
-#      - postgres
-#    volumes:
-#      - ./schemaspy_output:/output
-#      - ./postgresql-42.2.23.jar:/drivers/postgresql-42.2.23.jar
-#    command: >
-#      -t pgsql
-#      -host postgres
-#      -port 5432
-#      -db metasimulator
-#      -u metasimulator
-#      -p metasimulator
-#      -dp /drivers
-#      -driver org.postgresql.Driver
-
 
 
 
