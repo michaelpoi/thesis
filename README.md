@@ -1,13 +1,20 @@
-# Setup
 
-## Installing MetaDrive
+
+# AV Multiplayer Simulator
+
+A web app for running real-time and offline multi-agent driving scenarios powered by MetaDrive.
+Admin users can create maps and scenarios, assign drivers, and download execution logs. Regular users can join their assigned scenarios and drive with keyboard controls.
+
+## Setup
+
+### Installing MetaDrive
 
 ```shell
 cd src/api/
 git clone https://github.com/metadriverse/metadrive.git --single-branch
 ```
 
-## Starting Compose
+### Starting Compose
 
 ```shell
 cd ..
@@ -15,11 +22,11 @@ sudo docker compose up --build -d
 ```
 
 
-# Usage
+## Usage
 
 If setup was successful, app can be accessed on port `80`.
 
-## Login
+### Login
 
 You will be automatically redirected to the login page.
 
@@ -35,7 +42,7 @@ Pre-created user credentials are:
 
 `password`: `user1`
 
-## Admin Page
+### Admin Page
 
 If you are logged in as admin, you can acess admin page:
 
@@ -54,11 +61,11 @@ This page provides interfaces for:
 
 2. User Management
 
-3. Scenario Execution - admins can also act as normal users add connect to scenarios (used vehicle ID should be entered)
+3. Scenario Execution - Admins can also join scenarios like normal users (you’ll be prompted for the used vehicle ID).
 
 4. Scenario data Extraction - if scenario is finished admins can download [Execution Logs](#execution-logs).
 
-## Map Creation
+### Map Creation
 
 Admins can create custom maps under:
 
@@ -66,13 +73,65 @@ http://127.0.0.1/maps
 
 Map is created from a sequence of blocks and can be updated by adding or removing blocks.
 
-## User workflow
+### User workflow
 
 Non-admin users interact with a platform from:
 
 http://127.0.0.1/
 
 There users can see only scenarios they are assigned to, and connect to them.
+
+## Real-Time scenarios
+
+This is the main innovation of the platform.
+
+- On connecting, users wait in a lobby until all assigned members are connected.
+
+- Drive using W / A / S / D:
+
+  - W: accelerate
+  - S: brake / reverse
+  - A: steer left
+  - D: steer right
+
+- Sensitivity (range 0.1—1.0) can be adjusted on the page or via hotkeys:
+
+  - Q / Z: increase/decrease acceleration sensitivity
+
+  - E / C: increase/decrease steering sensitivity
+
+The client sends positive magnitudes for sens_acceleration and sens_steering, and includes a direction (`UP`, `DOWN`, `LEFT`, `RIGHT`). The backend applies the sign automatically.
+
+## Offline Scenarios
+
+In Offline mode, driving is done by submitting sequences of moves.
+
+Each move contains:
+
+- `steps` (number of simulation steps)
+
+- `acceleration` (−1 to 1)
+
+- `steering` (−1 to 1)
+
+Arrow shortcuts (predefined moves):
+
+- `UP`: acceleration `+0.3`, steering `0.0`
+
+- `DOWN`: acceleration `−0.3`, steering `0.0`
+
+- `LEFT`: acceleration `0.0`, steering `−0.3`
+
+- `RIGHT`: acceleration `0.0`, steering `+0.3`
+
+Preview shows an animated single-agent result of your planned sequence.
+Submit enters a waiting state until all players submit their moves.
+When a partial result is simulated, you’ll see an animation of all vehicles moving from the initial to current state. You can choose:
+
+- Number of recent frames to display
+
+- Animation speed (default 20 FPS)
+
 
 ## Execution Logs
 
