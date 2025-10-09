@@ -82,7 +82,7 @@ For both scenario types execution logs look like the following:
     [
   {
     "step": 0,
-    "move": "KEEP_ALIVE", // user`s step (UP, DOWN, LEFT, RIGHT or KEEP_ALIVE for no step)
+    "move": "KEEP_ALIVE", // user`s step (UP, DOWN, LEFT, RIGHT or KEEP_ALIVE for no step) N/A for offline scenarios
     "positions": {
       "agent0": {
         "position": [   // Agent positions
