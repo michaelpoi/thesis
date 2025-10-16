@@ -143,7 +143,7 @@ useEffect(() => {
         const plt = raw.plt ?? raw;
 
         if (raw.frames) {
-            setPreviewFrames((prev) => [...prev, ...raw.frames]);
+            setPreviewFrames(raw.frames);
         }
 
         if (plt?.positions) {

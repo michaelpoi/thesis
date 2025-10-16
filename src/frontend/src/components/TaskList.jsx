@@ -138,6 +138,23 @@ const TaskList = () => {
         }
     };
 
+    const recreateScenario = async (task) => {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/tasks/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem('token')}` },
+            body: JSON.stringify({ steps: task.steps, vehicles: task.vehicles, map: task.map.id, is_offline: task.is_offline }),
+        });
+        if (res.status === 401) {
+            navigate('/logout', { replace: true })
+        }
+        if (res.status === 400) {
+            setUserError("User not found")
+            return
+        }
+        const newTask = await res.json();
+        setTasks([...tasks, newTask]);
+    }
+
 
     return (
         <div>
@@ -162,7 +179,7 @@ const TaskList = () => {
                             :
                             <button className="connect_button" onClick={() => onProcced(task)}>Connect</button>
                         }
-
+                        <button onClick={() => recreateScenario(task)}>Recreate</button>
                         {/* <button className="connect_button" onClick={() => onOffline(task)}>Offline</button> */}
 
                     </div>
